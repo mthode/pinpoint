@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Pinpoint</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="app">
+    <header class="header">
+      <h1 class="logo">📍 Pinpoint</h1>
+      <div class="controls">
+        <label for="provider-select">Provider:</label>
+        <select id="provider-select">
+          <option value="ollama">Ollama</option>
+        </select>
+        <label for="model-select">Model:</label>
+        <select id="model-select">
+          <option value="">Loading...</option>
+        </select>
+      </div>
+    </header>
+
+    <main class="chat-container">
+      <div id="chat-messages" class="chat-messages">
+        <div class="welcome-message">
+          <p>👋 Welcome to Pinpoint! Select a model above and start chatting.</p>
+        </div>
+      </div>
+    </main>
+
+    <footer class="input-area">
+      <div id="loading-indicator" class="loading-indicator hidden">
+        <span class="spinner"></span> AI is thinking...
+      </div>
+      <div class="input-row">
+        <textarea
+          id="message-input"
+          class="message-input"
+          placeholder="Type your message..."
+          rows="2"
+        ></textarea>
+        <button id="send-button" class="send-button">Send</button>
+      </div>
+    </footer>
+  </div>
+  <script src="app.js"></script>
+</body>
+</html>
