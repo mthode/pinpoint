@@ -77,7 +77,7 @@
   }
 
   function scrollToBottom() {
-    const container = chatMessages.closest('.chat-container') || chatMessages.parentElement;
+    const container = chatMessages.parentElement;
     if (container) container.scrollTop = container.scrollHeight;
   }
 
