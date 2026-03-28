@@ -395,6 +395,10 @@
     });
   }
 
+  function isPendingNode(node) {
+    return Boolean(node && node.pending);
+  }
+
   function createDraftNode(canvasX, canvasY, options) {
     removeDraftNode();
 
@@ -858,13 +862,14 @@
     layout.nodes.forEach((node) => {
       const button = document.createElement('button');
       button.type = 'button';
+      const isPending = isPendingNode(node);
       const isActive = node.id === selectedNodeId;
       const isMultiSelected = selectedNodeIdsForMerge.has(node.id);
       const isSearchMatch = searchMatchSet.has(node.id);
       const isSearchActive = node.id === activeSearchNodeId;
       const isSearchDim = Boolean(graphSearchQuery) && !isSearchMatch;
       const isExpanded = expandedNodeIds.has(node.id);
-      button.className = `graph-node${node.pending ? ' pending' : ''}${isActive ? ' active' : ''}${isMultiSelected ? ' multi-selected' : ''}${isSearchMatch ? ' search-match' : ''}${isSearchActive ? ' search-active' : ''}${isSearchDim ? ' search-dim' : ''}${isExpanded ? ' expanded' : ''}`;
+      button.className = `graph-node${isPending ? ' pending' : ''}${isActive ? ' active' : ''}${isMultiSelected ? ' multi-selected' : ''}${isSearchMatch ? ' search-match' : ''}${isSearchActive ? ' search-active' : ''}${isSearchDim ? ' search-dim' : ''}${isExpanded ? ' expanded' : ''}`;
       button.title = node.content;
       button.style.left = `${node.x}px`;
       button.style.top = `${node.y}px`;
@@ -910,8 +915,12 @@
       openActions.type = 'button';
       openActions.className = 'mini-button';
       openActions.textContent = 'Actions';
+      openActions.disabled = isPending;
       openActions.addEventListener('click', async (event) => {
         event.stopPropagation();
+        if (isPending) {
+          return;
+        }
         await handleNodeSelection(node, false);
       });
 
@@ -919,8 +928,12 @@
       multiSelect.type = 'button';
       multiSelect.className = 'mini-button';
       multiSelect.textContent = isMultiSelected ? 'Unselect' : 'Select';
+      multiSelect.disabled = isPending;
       multiSelect.addEventListener('click', (event) => {
         event.stopPropagation();
+        if (isPending) {
+          return;
+        }
         toggleNodeMultiSelection(node.id);
         renderGraph(graph);
       });
@@ -952,7 +965,7 @@
       button.appendChild(actionsRow);
 
       button.addEventListener('click', async () => {
-        if (Date.now() < suppressNodeClickUntil) {
+        if (Date.now() < suppressNodeClickUntil || isPending) {
           return;
         }
         await handleNodeSelection(node, true);
@@ -1237,6 +1250,9 @@
   }
 
   async function handleNodeSelection(node, syncTrigger) {
+    if (isPendingNode(node)) {
+      return;
+    }
     try {
       const res = await fetch(`/api/brainstorm/graphs/${encodeURIComponent(graphId)}/select`, {
         method: 'POST',
@@ -1581,7 +1597,7 @@
   }
 
   function beginNodeDrag(event, node) {
-    if (event.button !== 0) {
+    if (event.button !== 0 || isPendingNode(node)) {
       return;
     }
     if (event.target && event.target.closest && event.target.closest('.mini-button')) {

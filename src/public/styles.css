@@ -347,6 +347,11 @@ body {
 .graph-node.pending {
   border-style: dashed;
   opacity: 0.82;
+  cursor: wait;
+}
+
+.graph-node.pending:active {
+  cursor: wait;
 }
 
 .graph-node.multi-selected {
