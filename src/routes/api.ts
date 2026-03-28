@@ -475,7 +475,9 @@ router.post('/brainstorm/execute', async (req: Request, res: Response) => {
               createdNodeIds: inserted.createdNodeIds,
               bubbleCount: autoResult.bubbles.length,
             });
-          } catch {
+          } catch (autoErr) {
+            const errorMsg = autoErr instanceof Error ? autoErr.message : 'Unknown error';
+            console.error(`Auto-action '${autoAction.name}' failed:`, errorMsg);
             autoExecutions.push({
               action: autoAction.name,
               parentNodeId: sourceNodeId,
