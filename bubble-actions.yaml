@@ -1,0 +1,294 @@
+# Pinpoint — Bubble Actions Configuration
+# ==========================================
+# This file defines the AI agents, their personas, and the declarative
+# actions that control how bubbles can be extended on the canvas.
+# Edit this file to change brainstorming behavior without modifying code.
+
+# ── Agent Definitions ──────────────────────────────────────────────────
+
+agents:
+  facilitator:
+    description: "Guides the brainstorming process"
+    default_model: "ollama-network/llama3"
+    system_prompt: |
+      You are a skilled facilitator guiding a brainstorming session.
+      Your job is to help the user clarify their thinking, not to answer
+      for them. Ask targeted questions. Break complex problems into
+      manageable pieces. Never assume — always probe.
+
+  explorer:
+    description: "Generates creative alternatives"
+    default_model: "ollama-network/llama3"
+    system_prompt: |
+      You are a creative thinker who generates unconventional alternatives.
+      When presented with an idea, produce multiple distinct approaches.
+      Challenge conventional thinking. Suggest "what if" scenarios.
+      Quantity over quality at this stage — wild ideas welcome.
+
+  critic:
+    description: "Identifies risks and weaknesses"
+    default_model: "ollama-network/llama3"
+    system_prompt: |
+      You are a critical analyst. Your job is to find flaws, risks, and
+      hidden assumptions in ideas. Be specific — cite which part of the
+      idea is weak and why. Reference any stated criteria or constraints.
+      Be constructive: identify the problem, then suggest what would fix it.
+
+  synthesizer:
+    description: "Merges insights from multiple branches"
+    default_model: "ollama-network/llama3"
+    system_prompt: |
+      You are a synthesizer who finds unity in opposing ideas. Given two
+      or more branches of thought, identify the core strengths of each
+      and propose a unified approach that preserves those strengths while
+      resolving contradictions. Explain what you kept and what you let go.
+
+  researcher:
+    description: "Provides factual context and examples"
+    default_model: "ollama-network/llama3"
+    system_prompt: |
+      You are a research assistant. Provide relevant factual context,
+      real-world examples, and prior art. Ground abstract discussions
+      in concrete data. Cite specifics when possible. Flag when you
+      are uncertain about a fact.
+
+# ── Bubble Actions ─────────────────────────────────────────────────────
+
+actions:
+
+  # ── Initiating ────────────────────────────────────────────────
+
+  - name: ask_question
+    description: "User poses a new question"
+    trigger: [root]
+    actor: user
+    output: question
+
+  - name: make_request
+    description: "User makes a directed request"
+    trigger: [root]
+    actor: user
+    output: request
+
+  # ── Probing ───────────────────────────────────────────────────
+
+  - name: clarify
+    description: "Facilitator asks a clarifying question"
+    trigger: [question, request, answer, step]
+    actor: facilitator
+    prompt_template: |
+      The user said: "{{parent.content}}"
+
+      Context inherited from ancestors:
+      {{ancestors.context}}
+
+      Active constraints:
+      {{ancestors.constraints}}
+
+      Ask ONE focused clarifying question to narrow scope or resolve
+      ambiguity. Suggest 2-3 possible answers the user might give.
+    output: clarification
+    branching: pause
+
+  - name: answer_clarification
+    description: "User answers a clarifying question"
+    trigger: [clarification]
+    actor: user
+    output: answer
+
+  - name: provoke
+    description: "Explorer challenges the frame with a what-if"
+    trigger: [question, request, step, response]
+    actor: explorer
+    prompt_template: |
+      The current line of thinking is: "{{parent.content}}"
+
+      Active assumptions:
+      {{ancestors.assumptions}}
+
+      Generate a provocative "what if" that challenges a fundamental
+      assumption or introduces a surprising constraint. Explain briefly
+      why this reframe might reveal something useful.
+    output: provocation
+    branching: fork
+
+  # ── Framing ───────────────────────────────────────────────────
+
+  - name: add_context
+    description: "User adds background information"
+    trigger: [question, request, step]
+    actor: user
+    output: context
+
+  - name: research_context
+    description: "Researcher provides factual background"
+    trigger: [question, request, step]
+    actor: researcher
+    prompt_template: |
+      The topic is: "{{parent.content}}"
+
+      Provide relevant background information, prior art, or real-world
+      examples that would help someone reason about this topic.
+      Be specific and factual.
+    output: context
+
+  - name: add_constraint
+    description: "User adds a hard boundary"
+    trigger: [question, request]
+    actor: user
+    output: constraint
+
+  - name: state_assumption
+    description: "Make an implicit assumption explicit"
+    trigger: [question, request, step, response]
+    actor: facilitator
+    prompt_template: |
+      Review the conversation so far:
+      {{branch.summary}}
+
+      Identify ONE important assumption that hasn't been stated
+      explicitly. State it clearly and explain why it matters.
+    output: assumption
+
+  - name: challenge_assumption
+    description: "Create a branch where an assumption is inverted"
+    trigger: [assumption]
+    actor: explorer
+    prompt_template: |
+      The assumption is: "{{parent.content}}"
+
+      What would change if this assumption were false? Describe the
+      alternative premise and what it would mean for the solution space.
+    output: provocation
+    branching: fork
+
+  - name: add_criterion
+    description: "User defines an evaluation standard"
+    trigger: [question, request]
+    actor: user
+    output: criterion
+
+  # ── Generating ────────────────────────────────────────────────
+
+  - name: break_down
+    description: "Facilitator decomposes into steps"
+    trigger: [question, request, answer]
+    actor: facilitator
+    prompt_template: |
+      The user wants: "{{parent.content}}"
+
+      Context: {{ancestors.context}}
+      Constraints: {{ancestors.constraints}}
+
+      Break this into 3-7 discrete, actionable steps. Return each step
+      as a separate item. Do not solve the steps — just identify them.
+    output: step
+    output_mode: chain
+
+  - name: generate_alternatives
+    description: "Explorer produces multiple parallel approaches"
+    trigger: [step, question, request]
+    actor: explorer
+    prompt_template: |
+      The challenge is: "{{parent.content}}"
+
+      Generate 2-4 meaningfully different approaches to this.
+      Each approach should be a distinct strategy, not a variation.
+      Label each clearly.
+    output: step
+    branching: fork_multiple
+
+  - name: respond
+    description: "Produce a concrete response for this path"
+    trigger: [step, answer, question, request]
+    actor: facilitator
+    prompt_template: |
+      Based on the full path of reasoning:
+      {{branch.path}}
+
+      Context: {{ancestors.context}}
+      Constraints: {{ancestors.constraints}}
+
+      Produce a complete, concrete response that addresses the
+      original question/request through the lens of this branch.
+    output: response
+
+  - name: give_example
+    description: "Researcher provides a concrete example"
+    trigger: [step, response, context]
+    actor: researcher
+    prompt_template: |
+      The idea is: "{{parent.content}}"
+
+      Provide a specific, real-world example that illustrates this
+      concept. Explain how the example relates to the current discussion.
+    output: example
+
+  # ── Evaluating ────────────────────────────────────────────────
+
+  - name: critique
+    description: "Critic identifies weaknesses"
+    trigger: [response, step, synthesis]
+    actor: critic
+    prompt_template: |
+      Evaluate this: "{{parent.content}}"
+
+      Active criteria:
+      {{ancestors.criteria}}
+
+      Identify specific weaknesses, risks, or gaps. Reference the
+      stated criteria where applicable. For each issue, briefly
+      suggest what would address it.
+    output: critique
+
+  - name: compare_branches
+    description: "Compare sibling branches against criteria"
+    trigger: [response]
+    input: siblings
+    actor: synthesizer
+    prompt_template: |
+      Compare these approaches:
+      {{siblings.content}}
+
+      Evaluation criteria:
+      {{ancestors.criteria}}
+
+      Score each approach against each criterion. Identify clear
+      winners, trade-offs, and what each approach sacrifices.
+    output: comparison
+
+  # ── Synthesizing ──────────────────────────────────────────────
+
+  - name: synthesize
+    description: "Merge the best of multiple branches"
+    trigger: [comparison, response]
+    input: selected_branches
+    actor: synthesizer
+    prompt_template: |
+      These branches were selected for synthesis:
+      {{selected.content}}
+
+      The comparison found:
+      {{comparison.content}}
+
+      Produce a unified approach that preserves the core strengths
+      of each branch. Explain what you kept, what you discarded,
+      and how you resolved contradictions.
+    output: synthesis
+    branching: merge
+
+# ── Auto-Actions ───────────────────────────────────────────────────────
+# Actions that fire automatically when a bubble of the given type is created.
+# The user can override or disable these in settings.
+
+auto_actions:
+  question:
+    - clarify
+    - state_assumption
+    - research_context
+  request:
+    - break_down
+  answer:
+    - break_down
+  step:
+    - critique
