@@ -252,14 +252,19 @@
     renderActions(mergeActions);
   }
 
-  function buildExecutionContext() {
-    const selectedNode = graphNodeCache.find((n) => n.id === selectedNodeId);
-    const selectedContent = graphNodeCache
-      .filter((n) => selectedNodeIdsForMerge.has(n.id))
-      .map((n) => n.content);
+  function buildExecutionContext(options = {}) {
+    const asRoot = Boolean(options.asRoot);
+    const selectedNode = asRoot
+      ? null
+      : graphNodeCache.find((n) => n.id === selectedNodeId);
+    const selectedContent = asRoot
+      ? []
+      : graphNodeCache
+        .filter((n) => selectedNodeIdsForMerge.has(n.id))
+        .map((n) => n.content);
     const parentContent = selectedNode
       ? selectedNode.content
-      : 'No parent bubble selected yet.';
+      : '';
 
     const branchPath = selectedNode
       ? buildPathToNode(
@@ -368,7 +373,9 @@
     };
     const baseGraph = buildHydrationBaseGraph();
 
-    pendingFocusNodeId = nodeId;
+    if (options.focus !== false) {
+      pendingFocusNodeId = nodeId;
+    }
     hydrateGraphState({
       ...baseGraph,
       id: graphId,
@@ -552,10 +559,12 @@
       createAsRoot: true,
       position: { x: canvasX / graphZoom, y: canvasY / graphZoom },
       clientNodeIds: [],
-      context: buildExecutionContext(),
+      context: buildExecutionContext({ asRoot: true }),
     };
 
     const previousSelectedNodeId = selectedNodeId;
+    selectedNodeIdsForMerge.clear();
+    dismissNodePopup();
     const optimisticRootNodeId = createOptimisticRootNodeId();
     payload.clientNodeIds = [optimisticRootNodeId];
     renderOptimisticRootNode(
@@ -563,7 +572,7 @@
       result.type,
       result.text,
       payload.position,
-      { pending: true },
+      { pending: true, focus: false },
     );
 
     let hasPendingAutoActions = false;
@@ -581,7 +590,6 @@
       if (data.selectedNodeId) selectedNodeId = data.selectedNodeId;
       if (Array.isArray(data.createdNodeIds) && data.createdNodeIds.length > 0) {
         createdRootNodeId = data.createdNodeIds[0];
-        pendingFocusNodeId = createdRootNodeId;
       } else {
         removeOptimisticRootNode(optimisticRootNodeId, previousSelectedNodeId);
       }
@@ -590,7 +598,7 @@
       removeOptimisticRootNode(optimisticRootNodeId, previousSelectedNodeId);
       showError(err.message || 'Failed to create bubble');
     } finally {
-      await loadGraph(createdRootNodeId);
+      await loadGraph(createdRootNodeId, { skipFocus: true });
     }
     if (hasPendingAutoActions) {
       scheduleAutoActionReload();
@@ -817,9 +825,6 @@
     graphNodeCache = Array.isArray(normalizedGraph.nodes) ? normalizedGraph.nodes : [];
     graphEdgeCache = Array.isArray(normalizedGraph.edges) ? normalizedGraph.edges : [];
     recomputeGraphSearchMatches();
-    if (selectedNodeId) {
-      selectedNodeIdsForMerge.add(selectedNodeId);
-    }
     updateMergeSummary();
     refreshActionPanelForMode();
     graphNameInput.value = graphName;
@@ -1548,7 +1553,7 @@
     };
   }
 
-  async function loadGraph(expectedNodeId) {
+  async function loadGraph(expectedNodeId, options = {}) {
     try {
       const maxAttempts = expectedNodeId ? 5 : 1;
       let latestGraph = null;
@@ -1564,7 +1569,9 @@
         if (expectedNodeFound) {
           if (expectedNodeId) {
             data.selectedNodeId = expectedNodeId;
-            pendingFocusNodeId = expectedNodeId;
+            if (!options.skipFocus) {
+              pendingFocusNodeId = expectedNodeId;
+            }
           }
           hydrateGraphState(data);
           await loadGraphList();
