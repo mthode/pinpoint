@@ -435,6 +435,7 @@
       context: buildExecutionContext(),
     };
 
+    let hasPendingAutoActions = false;
     try {
       const res = await fetch('/api/brainstorm/execute', {
         method: 'POST',
@@ -449,10 +450,14 @@
       if (Array.isArray(data.createdNodeIds) && data.createdNodeIds.length > 0) {
         pendingFocusNodeId = data.createdNodeIds[0];
       }
+      hasPendingAutoActions = Boolean(data.pendingAutoActions);
     } catch (err) {
       showError(err.message || 'Failed to create bubble');
     } finally {
       await loadGraph();
+    }
+    if (hasPendingAutoActions) {
+      scheduleAutoActionReload();
     }
   }
 
@@ -507,6 +512,7 @@
       context: buildExecutionContext(),
     };
 
+    let hasPendingAutoActions = false;
     const res = await fetch('/api/brainstorm/execute', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -528,9 +534,22 @@
       if (Array.isArray(data.createdNodeIds) && data.createdNodeIds.length > 0) {
         pendingFocusNodeId = data.createdNodeIds[0];
       }
+      hasPendingAutoActions = Boolean(data.pendingAutoActions);
     } finally {
       await loadGraph();
     }
+    if (hasPendingAutoActions) {
+      scheduleAutoActionReload();
+    }
+  }
+
+  let autoActionReloadTimer = null;
+  function scheduleAutoActionReload() {
+    if (autoActionReloadTimer) clearTimeout(autoActionReloadTimer);
+    autoActionReloadTimer = setTimeout(async () => {
+      autoActionReloadTimer = null;
+      await loadGraph();
+    }, 3000);
   }
 
   async function ensureGraph() {

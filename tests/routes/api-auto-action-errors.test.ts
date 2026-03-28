@@ -77,7 +77,7 @@ describe('POST /api/brainstorm/execute — auto-action error handling', () => {
     expect(res.body).toHaveProperty('selectedNodeId');
   });
 
-  it('records failed auto-actions in the response', async () => {
+  it('records failed auto-actions in server logs when run in background', async () => {
     const res = await request(app)
       .post('/api/brainstorm/execute')
       .send({
@@ -88,14 +88,19 @@ describe('POST /api/brainstorm/execute — auto-action error handling', () => {
       });
 
     expect(res.status).toBe(200);
+    // Auto-actions now run in the background; immediate response is empty
     expect(Array.isArray(res.body.autoExecutions)).toBe(true);
-    // Auto-actions for question type (clarify, state_assumption, research_context)
-    // should all have failed but been recorded
-    expect(res.body.autoExecutions.length).toBeGreaterThan(0);
-    for (const auto of res.body.autoExecutions) {
-      expect(auto.createdNodeIds).toEqual([]);
-      expect(auto.bubbleCount).toBe(0);
-    }
+    expect(res.body.autoExecutions.length).toBe(0);
+    expect(res.body.pendingAutoActions).toBe(true);
+
+    // Wait for background auto-actions to complete (they will all fail)
+    await new Promise((resolve) => setTimeout(resolve, 500));
+
+    // Verify the graph only has the user's bubble (no auto-action results since they failed)
+    const graphRes = await request(app).get('/api/brainstorm/graphs/auto-fail-record');
+    expect(graphRes.status).toBe(200);
+    // Only root + user's question (auto-actions all failed)
+    expect(graphRes.body.nodes.length).toBe(2);
   });
 
   it('creates the user bubble in the graph even when auto-actions fail', async () => {

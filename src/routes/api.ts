@@ -424,97 +424,83 @@ router.post('/brainstorm/execute', async (req: Request, res: Response) => {
         : undefined,
     });
 
-    const autoExecutions: Array<{
-      action: string;
-      parentNodeId: string;
-      createdNodeIds: string[];
-      bubbleCount: number;
-      error?: string;
-    }> = [];
-
     const shouldRunAutoActions = applyAutoActions !== false;
-    const maxAutoActions = 8;
 
-    if (shouldRunAutoActions) {
-      let autoCount = 0;
-      for (let i = 0; i < result.bubbles.length; i += 1) {
-        if (autoCount >= maxAutoActions) {
-          break;
-        }
-
-        const explicitBubble = result.bubbles[i];
-        const sourceNodeId = graphResult.createdNodeIds[i];
-        if (!sourceNodeId) {
-          continue;
-        }
-
-        const autoActions = getAutoActionsForBubbleType(explicitBubble.type).filter(
-          (autoAction) => autoAction.actor !== 'user',
-        );
-
-        for (const autoAction of autoActions) {
-          if (autoCount >= maxAutoActions) {
-            break;
-          }
-
-          try {
-            const contextFromGraph = buildExecutionContextFromGraph(graphResult.graph, sourceNodeId);
-            const autoResult = await executeBrainstormAction(
-              {
-                action: autoAction,
-                context: contextFromGraph,
-                providerOverride: provider,
-                modelOverride: model,
-              },
-              getProvider,
-            );
-
-            const inserted = appendBubblesToGraph({
-              graphId: targetGraphId,
-              parentNodeIds: [sourceNodeId],
-              bubbles: autoResult.bubbles,
-              actor: autoResult.actor,
-              mode: autoAction.branching,
-              outputMode: autoAction.output_mode,
-            });
-
-            autoExecutions.push({
-              action: autoAction.name,
-              parentNodeId: sourceNodeId,
-              createdNodeIds: inserted.createdNodeIds,
-              bubbleCount: autoResult.bubbles.length,
-            });
-          } catch (autoErr) {
-            const errorMsg = autoErr instanceof Error ? autoErr.message : 'Unknown error';
-            console.error(`Auto-action '${autoAction.name}' failed:`, errorMsg);
-            autoExecutions.push({
-              action: autoAction.name,
-              parentNodeId: sourceNodeId,
-              createdNodeIds: [],
-              bubbleCount: 0,
-              error: `Auto-action '${autoAction.name}' failed`,
-            });
-          }
-          autoCount += 1;
-        }
-      }
-    }
-
-    const finalGraph = getOrCreateGraph(targetGraphId);
+    // Respond immediately so the user's bubble renders without waiting
+    // for potentially slow auto-actions (AI calls).
+    const immediateGraph = getOrCreateGraph(targetGraphId);
 
     res.json({
       ...result,
       graphId: targetGraphId,
       parentNodeIds: resolvedParentIds,
       createdNodeIds: graphResult.createdNodeIds,
-      selectedNodeId: finalGraph.selectedNodeId,
-      autoExecutions,
-      history: getGraphHistoryStatus(finalGraph.id),
+      selectedNodeId: immediateGraph.selectedNodeId,
+      autoExecutions: [],
+      pendingAutoActions: shouldRunAutoActions,
+      history: getGraphHistoryStatus(immediateGraph.id),
       graphStats: {
-        nodeCount: finalGraph.nodes.length,
-        edgeCount: finalGraph.edges.length,
+        nodeCount: immediateGraph.nodes.length,
+        edgeCount: immediateGraph.edges.length,
       },
     });
+
+    // Run auto-actions in the background after responding.
+    if (shouldRunAutoActions) {
+      const maxAutoActions = 8;
+      (async () => {
+        let autoCount = 0;
+        for (let i = 0; i < result.bubbles.length; i += 1) {
+          if (autoCount >= maxAutoActions) {
+            break;
+          }
+
+          const explicitBubble = result.bubbles[i];
+          const sourceNodeId = graphResult.createdNodeIds[i];
+          if (!sourceNodeId) {
+            continue;
+          }
+
+          const autoActions = getAutoActionsForBubbleType(explicitBubble.type).filter(
+            (autoAction) => autoAction.actor !== 'user',
+          );
+
+          for (const autoAction of autoActions) {
+            if (autoCount >= maxAutoActions) {
+              break;
+            }
+
+            try {
+              const contextFromGraph = buildExecutionContextFromGraph(graphResult.graph, sourceNodeId);
+              const autoResult = await executeBrainstormAction(
+                {
+                  action: autoAction,
+                  context: contextFromGraph,
+                  providerOverride: provider,
+                  modelOverride: model,
+                },
+                getProvider,
+              );
+
+              appendBubblesToGraph({
+                graphId: targetGraphId,
+                parentNodeIds: [sourceNodeId],
+                bubbles: autoResult.bubbles,
+                actor: autoResult.actor,
+                mode: autoAction.branching,
+                outputMode: autoAction.output_mode,
+              });
+            } catch (autoErr) {
+              const errorMsg = autoErr instanceof Error ? autoErr.message : 'Unknown error';
+              console.error(`Auto-action '${autoAction.name}' failed:`, errorMsg);
+            }
+            autoCount += 1;
+          }
+        }
+      })().catch((bgErr) => {
+        console.error('Background auto-action error:', bgErr);
+      });
+    }
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unknown error';
     res.status(500).json({ error: message });

@@ -264,8 +264,19 @@ describe('POST /api/brainstorm/execute', () => {
 
     expect(res.status).toBe(200);
     expect(Array.isArray(res.body.autoExecutions)).toBe(true);
-    expect(res.body.autoExecutions.length).toBeGreaterThan(0);
-    expect(res.body.graphStats.nodeCount).toBeGreaterThan(2);
+    // Auto-actions now run in the background; immediate response has empty array
+    expect(res.body.autoExecutions.length).toBe(0);
+    expect(res.body.pendingAutoActions).toBe(true);
+    // User's bubble is created immediately (nodeCount includes root + question)
+    expect(res.body.graphStats.nodeCount).toBeGreaterThanOrEqual(2);
+
+    // Wait for background auto-actions to complete
+    await new Promise((resolve) => setTimeout(resolve, 500));
+
+    // After waiting, the graph should have more nodes from auto-actions
+    const graphRes = await request(app).get('/api/brainstorm/graphs/auto-default');
+    expect(graphRes.status).toBe(200);
+    expect(graphRes.body.nodes.length).toBeGreaterThan(2);
   });
 
   it('can disable auto-actions per execution call', async () => {

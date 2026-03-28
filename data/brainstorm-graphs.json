@@ -6,9 +6,9 @@
       "name": "default",
       "bookmarked": false,
       "createdAt": "2026-03-26T04:40:47.222Z",
-      "updatedAt": "2026-03-28T15:34:53.550Z",
+      "updatedAt": "2026-03-27T22:13:29.216Z",
       "rootNodeId": "root-1774500047222-kdyj7b",
-      "selectedNodeId": "bubble-1774712093550-od2cyb",
+      "selectedNodeId": "bubble-1774502475487-6xlodr",
       "nodes": [
         {
           "id": "root-1774500047222-kdyj7b",
@@ -60,17 +60,6 @@
             "x": 713,
             "y": 335
           }
-        },
-        {
-          "id": "bubble-1774712093550-od2cyb",
-          "type": "question",
-          "content": "What is quantum computing?",
-          "actor": "user",
-          "createdAt": "2026-03-28T15:34:53.550Z",
-          "position": {
-            "x": 640,
-            "y": 338
-          }
         }
       ],
       "edges": [
@@ -91,77 +80,6 @@
           "to": "bubble-1774502723863-skxvtq"
         }
       ]
-    },
-    {
-      "id": "test-root",
-      "name": "test-root",
-      "bookmarked": false,
-      "createdAt": "2026-03-28T15:34:18.316Z",
-      "updatedAt": "2026-03-28T15:34:18.317Z",
-      "rootNodeId": "root-1774712058316-ht0ns8",
-      "selectedNodeId": "bubble-1774712058317-a5m2t0",
-      "nodes": [
-        {
-          "id": "root-1774712058316-ht0ns8",
-          "type": "root",
-          "content": "Brainstorm root",
-          "actor": "system",
-          "createdAt": "2026-03-28T15:34:18.316Z"
-        },
-        {
-          "id": "bubble-1774712058317-a5m2t0",
-          "type": "question",
-          "content": "New root question from background",
-          "actor": "user",
-          "createdAt": "2026-03-28T15:34:18.317Z",
-          "position": {
-            "x": 400,
-            "y": 300
-          }
-        }
-      ],
-      "edges": []
-    },
-    {
-      "id": "test-fresh",
-      "name": "test-fresh",
-      "bookmarked": false,
-      "createdAt": "2026-03-28T15:52:07.639Z",
-      "updatedAt": "2026-03-28T15:53:48.093Z",
-      "rootNodeId": "root-1774713127639-eg76v9",
-      "selectedNodeId": "bubble-1774713228093-dakes1",
-      "nodes": [
-        {
-          "id": "root-1774713127639-eg76v9",
-          "type": "root",
-          "content": "Brainstorm root",
-          "actor": "system",
-          "createdAt": "2026-03-28T15:52:07.639Z"
-        },
-        {
-          "id": "bubble-1774713133393-04u5jp",
-          "type": "question",
-          "content": "What is the meaning of life?",
-          "actor": "user",
-          "createdAt": "2026-03-28T15:52:13.393Z",
-          "position": {
-            "x": 300,
-            "y": 200
-          }
-        },
-        {
-          "id": "bubble-1774713228093-dakes1",
-          "type": "question",
-          "content": "What is gravity?",
-          "actor": "user",
-          "createdAt": "2026-03-28T15:53:48.093Z",
-          "position": {
-            "x": 600,
-            "y": 400
-          }
-        }
-      ],
-      "edges": []
     }
   ]
 }
