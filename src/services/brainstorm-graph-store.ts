@@ -293,6 +293,7 @@ export function appendBubblesToGraph(params: {
   outputMode?: 'chain';
   createAsRoot?: boolean;
   position?: { x: number; y: number };
+  clientNodeIds?: string[];
 }): { graph: BrainstormGraph; createdNodeIds: string[] } {
   loadStoreIfNeeded();
 
@@ -301,8 +302,14 @@ export function appendBubblesToGraph(params: {
   const createdNodeIds: string[] = [];
 
   if (params.createAsRoot) {
-    for (const bubble of params.bubbles) {
-      const id = nodeId('bubble');
+    for (let index = 0; index < params.bubbles.length; index += 1) {
+      const bubble = params.bubbles[index];
+      const preferredId = typeof params.clientNodeIds?.[index] === 'string'
+        ? params.clientNodeIds[index].trim()
+        : '';
+      const id = preferredId && !graph.nodes.some((node) => node.id === preferredId)
+        ? preferredId
+        : nodeId('bubble');
       const node: GraphNode = {
         id,
         type: bubble.type,

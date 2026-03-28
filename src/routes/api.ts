@@ -361,6 +361,7 @@ router.post('/brainstorm/execute', async (req: Request, res: Response) => {
     applyAutoActions,
     createAsRoot,
     position,
+    clientNodeIds,
   } = req.body as {
     action?: string;
     context?: ExecutionContextInput;
@@ -373,6 +374,7 @@ router.post('/brainstorm/execute', async (req: Request, res: Response) => {
     applyAutoActions?: boolean;
     createAsRoot?: boolean;
     position?: { x: number; y: number };
+    clientNodeIds?: string[];
   };
 
   if (!actionName || typeof actionName !== 'string') {
@@ -424,6 +426,7 @@ router.post('/brainstorm/execute', async (req: Request, res: Response) => {
       position: position && typeof position.x === 'number' && typeof position.y === 'number'
         ? position
         : undefined,
+      clientNodeIds: Array.isArray(clientNodeIds) ? clientNodeIds : undefined,
     });
 
     const shouldRunAutoActions = applyAutoActions !== false;

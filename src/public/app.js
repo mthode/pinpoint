@@ -620,11 +620,13 @@
       graphId,
       createAsRoot: true,
       position: { x: canvasX / graphZoom, y: canvasY / graphZoom },
+      clientNodeIds: [],
       context: buildExecutionContext(),
     };
 
     const previousSelectedNodeId = selectedNodeId;
     const optimisticRootNodeId = createOptimisticRootNodeId();
+    payload.clientNodeIds = [optimisticRootNodeId];
     renderOptimisticRootNode(
       optimisticRootNodeId,
       result.type,
@@ -648,7 +650,11 @@
       if (data.selectedNodeId) selectedNodeId = data.selectedNodeId;
       if (Array.isArray(data.createdNodeIds) && data.createdNodeIds.length > 0) {
         createdRootNodeId = data.createdNodeIds[0];
-        reconcileOptimisticRootNode(optimisticRootNodeId, createdRootNodeId);
+        if (createdRootNodeId !== optimisticRootNodeId) {
+          reconcileOptimisticRootNode(optimisticRootNodeId, createdRootNodeId);
+        } else {
+          pendingFocusNodeId = createdRootNodeId;
+        }
       } else {
         removeOptimisticRootNode(optimisticRootNodeId, previousSelectedNodeId);
       }

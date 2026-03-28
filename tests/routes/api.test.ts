@@ -348,6 +348,34 @@ describe('POST /api/brainstorm/execute', () => {
     expect(createdNode).toBeTruthy();
     expect(createdNode.position).toEqual({ x: 350, y: 200 });
   });
+
+  it('reuses a client-provided node id for createAsRoot', async () => {
+    const clientNodeId = 'optimistic-root-test-id';
+    const res = await request(app)
+      .post('/api/brainstorm/execute')
+      .send({
+        graphId: 'root-client-id-test',
+        action: 'ask_question',
+        userInput: 'Keep this exact bubble',
+        applyAutoActions: false,
+        createAsRoot: true,
+        clientNodeIds: [clientNodeId],
+        position: { x: 480, y: 160 },
+        context: { parent: { content: 'root' } },
+      });
+
+    expect(res.status).toBe(200);
+    expect(res.body.createdNodeIds).toEqual([clientNodeId]);
+
+    const graphRes = await request(app).get('/api/brainstorm/graphs/root-client-id-test');
+    expect(graphRes.status).toBe(200);
+
+    const createdNode = graphRes.body.nodes.find(
+      (node: { id: string }) => node.id === clientNodeId,
+    );
+    expect(createdNode).toBeTruthy();
+    expect(createdNode.position).toEqual({ x: 480, y: 160 });
+  });
 });
 
 describe('Brainstorm graph endpoints', () => {
