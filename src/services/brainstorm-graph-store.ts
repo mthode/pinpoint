@@ -302,12 +302,13 @@ export function appendBubblesToGraph(params: {
   const createdNodeIds: string[] = [];
 
   if (params.createAsRoot) {
+    const existingNodeIds = new Set(graph.nodes.map((node) => node.id));
     for (let index = 0; index < params.bubbles.length; index += 1) {
       const bubble = params.bubbles[index];
       const preferredId = typeof params.clientNodeIds?.[index] === 'string'
         ? params.clientNodeIds[index].trim()
         : '';
-      const id = preferredId && !graph.nodes.some((node) => node.id === preferredId)
+      const id = preferredId && !existingNodeIds.has(preferredId)
         ? preferredId
         : nodeId('bubble');
       const node: GraphNode = {
@@ -321,6 +322,7 @@ export function appendBubblesToGraph(params: {
         node.position = { x: Math.round(params.position.x), y: Math.round(params.position.y) };
       }
       insertNode(graph, node);
+      existingNodeIds.add(id);
       createdNodeIds.push(id);
     }
   } else {
