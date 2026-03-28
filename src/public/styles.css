@@ -344,6 +344,11 @@ body {
   box-shadow: 0 0 0 1px rgba(233, 69, 96, 0.25);
 }
 
+.graph-node.pending {
+  border-style: dashed;
+  opacity: 0.82;
+}
+
 .graph-node.multi-selected {
   border-color: #7dd3fc;
   box-shadow: 0 0 0 1px rgba(125, 211, 252, 0.3);

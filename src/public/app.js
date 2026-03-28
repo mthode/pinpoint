@@ -291,7 +291,20 @@
     };
   }
 
-  function renderOptimisticRootNode(nodeId, type, content, position) {
+  function buildHydrationBaseGraph() {
+    return currentGraphSnapshot || {
+      id: graphId,
+      name: graphName,
+      bookmarked: graphBookmarked,
+      history: graphHistory,
+      rootNodeId: '',
+      selectedNodeId,
+      nodes: graphNodeCache,
+      edges: graphEdgeCache,
+    };
+  }
+
+  function renderOptimisticRootNode(nodeId, type, content, position, options = {}) {
     if (!nodeId || graphNodeCache.some((node) => node.id === nodeId)) {
       return;
     }
@@ -302,18 +315,10 @@
       content,
       actor: 'user',
       createdAt: new Date().toISOString(),
+      pending: Boolean(options.pending),
       ...(position ? { position: { x: Math.round(position.x), y: Math.round(position.y) } } : {}),
     };
-    const baseGraph = currentGraphSnapshot || {
-      id: graphId,
-      name: graphName,
-      bookmarked: graphBookmarked,
-      history: graphHistory,
-      rootNodeId: '',
-      selectedNodeId,
-      nodes: graphNodeCache,
-      edges: graphEdgeCache,
-    };
+    const baseGraph = buildHydrationBaseGraph();
 
     pendingFocusNodeId = nodeId;
     hydrateGraphState({
@@ -324,6 +329,62 @@
       history: graphHistory,
       selectedNodeId: nodeId,
       nodes: [...(Array.isArray(baseGraph.nodes) ? baseGraph.nodes : []), optimisticNode],
+      edges: Array.isArray(baseGraph.edges) ? [...baseGraph.edges] : [],
+    });
+  }
+
+  function reconcileOptimisticRootNode(nodeId, nextNodeId) {
+    if (!nodeId || !nextNodeId) {
+      return;
+    }
+
+    const baseGraph = buildHydrationBaseGraph();
+    const nodes = Array.isArray(baseGraph.nodes)
+      ? baseGraph.nodes.map((node) => (
+        node.id === nodeId
+          ? { ...node, id: nextNodeId, pending: false }
+          : node
+      ))
+      : [];
+
+    if (!nodes.some((node) => node.id === nextNodeId)) {
+      return;
+    }
+
+    pendingFocusNodeId = nextNodeId;
+    hydrateGraphState({
+      ...baseGraph,
+      id: graphId,
+      name: graphName,
+      bookmarked: graphBookmarked,
+      history: graphHistory,
+      selectedNodeId: nextNodeId,
+      nodes,
+      edges: Array.isArray(baseGraph.edges) ? [...baseGraph.edges] : [],
+    });
+  }
+
+  function removeOptimisticRootNode(nodeId, fallbackSelectedNodeId) {
+    if (!nodeId) {
+      return;
+    }
+
+    const baseGraph = buildHydrationBaseGraph();
+    const nodes = Array.isArray(baseGraph.nodes)
+      ? baseGraph.nodes.filter((node) => node.id !== nodeId)
+      : [];
+    const nextSelectedNodeId = baseGraph.selectedNodeId === nodeId
+      ? (fallbackSelectedNodeId || baseGraph.rootNodeId || '')
+      : baseGraph.selectedNodeId;
+
+    hydrateGraphState({
+      ...baseGraph,
+      id: graphId,
+      name: graphName,
+      bookmarked: graphBookmarked,
+      history: graphHistory,
+      selectedNodeId: nextSelectedNodeId,
+      nodes,
       edges: Array.isArray(baseGraph.edges) ? [...baseGraph.edges] : [],
     });
   }
@@ -472,6 +533,16 @@
       context: buildExecutionContext(),
     };
 
+    const previousSelectedNodeId = selectedNodeId;
+    const optimisticRootNodeId = `optimistic-root-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+    renderOptimisticRootNode(
+      optimisticRootNodeId,
+      result.type,
+      result.text,
+      payload.position,
+      { pending: true },
+    );
+
     let hasPendingAutoActions = false;
     let createdRootNodeId = '';
     try {
@@ -487,16 +558,13 @@
       if (data.selectedNodeId) selectedNodeId = data.selectedNodeId;
       if (Array.isArray(data.createdNodeIds) && data.createdNodeIds.length > 0) {
         createdRootNodeId = data.createdNodeIds[0];
-        pendingFocusNodeId = createdRootNodeId;
-        renderOptimisticRootNode(
-          createdRootNodeId,
-          result.type,
-          result.text,
-          payload.position,
-        );
+        reconcileOptimisticRootNode(optimisticRootNodeId, createdRootNodeId);
+      } else {
+        removeOptimisticRootNode(optimisticRootNodeId, previousSelectedNodeId);
       }
       hasPendingAutoActions = Boolean(data.pendingAutoActions);
     } catch (err) {
+      removeOptimisticRootNode(optimisticRootNodeId, previousSelectedNodeId);
       showError(err.message || 'Failed to create bubble');
     } finally {
       await loadGraph(createdRootNodeId);
@@ -790,7 +858,7 @@
       const isSearchActive = node.id === activeSearchNodeId;
       const isSearchDim = Boolean(graphSearchQuery) && !isSearchMatch;
       const isExpanded = expandedNodeIds.has(node.id);
-      button.className = `graph-node${isActive ? ' active' : ''}${isMultiSelected ? ' multi-selected' : ''}${isSearchMatch ? ' search-match' : ''}${isSearchActive ? ' search-active' : ''}${isSearchDim ? ' search-dim' : ''}${isExpanded ? ' expanded' : ''}`;
+      button.className = `graph-node${node.pending ? ' pending' : ''}${isActive ? ' active' : ''}${isMultiSelected ? ' multi-selected' : ''}${isSearchMatch ? ' search-match' : ''}${isSearchActive ? ' search-active' : ''}${isSearchDim ? ' search-dim' : ''}${isExpanded ? ' expanded' : ''}`;
       button.title = node.content;
       button.style.left = `${node.x}px`;
       button.style.top = `${node.y}px`;
@@ -1386,6 +1454,7 @@
           id: node.id,
           type: node.type,
           content: node.content,
+          pending: Boolean(node.pending),
           baseX,
           baseY,
           x: baseX * zoom,
