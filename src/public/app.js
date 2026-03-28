@@ -317,10 +317,30 @@
     });
   }
 
+  function getPendingOptimisticRootNodes() {
+    return Array.isArray(graphNodeCache)
+      ? graphNodeCache.filter((node) => (
+        node
+        && isPendingNode(node)
+        && typeof node.id === 'string'
+        && node.id.startsWith('optimistic-root-')
+      ))
+      : [];
+  }
+
   function normalizeHydratedGraph(graph) {
     if (!graph || typeof graph !== 'object') {
       return graph;
     }
+
+    const pendingOptimisticRoots = getPendingOptimisticRootNodes();
+    const incomingNodeIds = new Set(
+      Array.isArray(graph.nodes)
+        ? graph.nodes
+          .filter((node) => node && typeof node.id === 'string')
+          .map((node) => node.id)
+        : [],
+    );
 
     const nodes = Array.isArray(graph.nodes)
       ? graph.nodes.map((node) => {
@@ -337,6 +357,12 @@
         };
       })
       : [];
+
+    pendingOptimisticRoots.forEach((node) => {
+      if (!incomingNodeIds.has(node.id)) {
+        nodes.push(node);
+      }
+    });
 
     const edges = Array.isArray(graph.edges)
       ? graph.edges.filter((edge) => !persistedRootNodeIds.has(edge.to))
