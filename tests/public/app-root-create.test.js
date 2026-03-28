@@ -217,7 +217,9 @@ describe('background root creation', () => {
     expect(graphSummary.textContent).toContain('Edges: 0');
     expect(graphCanvas.scrollLeft).toBe(0);
     expect(graphCanvas.scrollTop).toBe(0);
-    expect(graphCanvas.scrollTo.mock.calls.every(([call]) => call.left === 0 && call.top === 0)).toBe(true);
+    expect(
+      graphCanvas.scrollTo.mock.calls.every((call) => call[0].left === 0 && call[0].top === 0),
+    ).toBe(true);
 
     dom.window.close();
   });
