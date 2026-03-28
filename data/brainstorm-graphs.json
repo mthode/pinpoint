@@ -6,7 +6,7 @@
       "name": "default",
       "bookmarked": false,
       "createdAt": "2026-03-26T04:40:47.222Z",
-      "updatedAt": "2026-03-27T22:13:29.216Z",
+      "updatedAt": "2026-03-28T17:51:11.963Z",
       "rootNodeId": "root-1774500047222-kdyj7b",
       "selectedNodeId": "bubble-1774502475487-6xlodr",
       "nodes": [
@@ -59,6 +59,17 @@
           "position": {
             "x": 713,
             "y": 335
+          }
+        },
+        {
+          "id": "bubble-1774720247556-s7bf4l",
+          "type": "question",
+          "content": "Why is the issue not fixed?",
+          "actor": "user",
+          "createdAt": "2026-03-28T17:50:47.556Z",
+          "position": {
+            "x": 120,
+            "y": 120
           }
         }
       ],
