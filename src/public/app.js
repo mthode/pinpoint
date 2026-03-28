@@ -291,6 +291,43 @@
     };
   }
 
+  function renderOptimisticRootNode(nodeId, type, content, position) {
+    if (!nodeId || graphNodeCache.some((node) => node.id === nodeId)) {
+      return;
+    }
+
+    const optimisticNode = {
+      id: nodeId,
+      type,
+      content,
+      actor: 'user',
+      createdAt: new Date().toISOString(),
+      ...(position ? { position: { x: Math.round(position.x), y: Math.round(position.y) } } : {}),
+    };
+    const baseGraph = currentGraphSnapshot || {
+      id: graphId,
+      name: graphName,
+      bookmarked: graphBookmarked,
+      history: graphHistory,
+      rootNodeId: '',
+      selectedNodeId,
+      nodes: graphNodeCache,
+      edges: graphEdgeCache,
+    };
+
+    pendingFocusNodeId = nodeId;
+    hydrateGraphState({
+      ...baseGraph,
+      id: graphId,
+      name: graphName,
+      bookmarked: graphBookmarked,
+      history: graphHistory,
+      selectedNodeId: nodeId,
+      nodes: [...(Array.isArray(baseGraph.nodes) ? baseGraph.nodes : []), optimisticNode],
+      edges: Array.isArray(baseGraph.edges) ? [...baseGraph.edges] : [],
+    });
+  }
+
   function createDraftNode(canvasX, canvasY, options) {
     removeDraftNode();
 
@@ -436,6 +473,7 @@
     };
 
     let hasPendingAutoActions = false;
+    let createdRootNodeId = '';
     try {
       const res = await fetch('/api/brainstorm/execute', {
         method: 'POST',
@@ -448,13 +486,20 @@
       if (data.graphId) graphId = data.graphId;
       if (data.selectedNodeId) selectedNodeId = data.selectedNodeId;
       if (Array.isArray(data.createdNodeIds) && data.createdNodeIds.length > 0) {
-        pendingFocusNodeId = data.createdNodeIds[0];
+        createdRootNodeId = data.createdNodeIds[0];
+        pendingFocusNodeId = createdRootNodeId;
+        renderOptimisticRootNode(
+          createdRootNodeId,
+          result.type,
+          result.text,
+          payload.position,
+        );
       }
       hasPendingAutoActions = Boolean(data.pendingAutoActions);
     } catch (err) {
       showError(err.message || 'Failed to create bubble');
     } finally {
-      await loadGraph();
+      await loadGraph(createdRootNodeId);
     }
     if (hasPendingAutoActions) {
       scheduleAutoActionReload();
@@ -513,6 +558,7 @@
     };
 
     let hasPendingAutoActions = false;
+    let createdNodeId = '';
     const res = await fetch('/api/brainstorm/execute', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -532,11 +578,12 @@
         selectedNodeId = data.selectedNodeId;
       }
       if (Array.isArray(data.createdNodeIds) && data.createdNodeIds.length > 0) {
-        pendingFocusNodeId = data.createdNodeIds[0];
+        createdNodeId = data.createdNodeIds[0];
+        pendingFocusNodeId = createdNodeId;
       }
       hasPendingAutoActions = Boolean(data.pendingAutoActions);
     } finally {
-      await loadGraph();
+      await loadGraph(createdNodeId);
     }
     if (hasPendingAutoActions) {
       scheduleAutoActionReload();
@@ -1396,12 +1443,35 @@
     };
   }
 
-  async function loadGraph() {
+  async function loadGraph(expectedNodeId) {
     try {
-      const res = await fetch(`/api/brainstorm/graphs/${encodeURIComponent(graphId)}`);
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Failed to load graph');
-      hydrateGraphState(data);
+      const maxAttempts = expectedNodeId ? 5 : 1;
+      let latestGraph = null;
+
+      for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+        const res = await fetch(`/api/brainstorm/graphs/${encodeURIComponent(graphId)}`);
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Failed to load graph');
+        latestGraph = data;
+
+        const expectedNodeFound = !expectedNodeId
+          || (Array.isArray(data.nodes) && data.nodes.some((node) => node.id === expectedNodeId));
+        if (expectedNodeFound) {
+          if (expectedNodeId) {
+            data.selectedNodeId = expectedNodeId;
+            pendingFocusNodeId = expectedNodeId;
+          }
+          hydrateGraphState(data);
+          await loadGraphList();
+          return;
+        }
+
+        await new Promise((resolve) => setTimeout(resolve, 75));
+      }
+
+      if (latestGraph) {
+        hydrateGraphState(latestGraph);
+      }
       await loadGraphList();
     } catch (err) {
       showError(err.message || 'Failed to load graph');
