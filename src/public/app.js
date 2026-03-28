@@ -448,9 +448,10 @@
       if (Array.isArray(data.createdNodeIds) && data.createdNodeIds.length > 0) {
         pendingFocusNodeId = data.createdNodeIds[0];
       }
-      await loadGraph();
     } catch (err) {
       showError(err.message || 'Failed to create bubble');
+    } finally {
+      await loadGraph();
     }
   }
 
@@ -511,21 +512,24 @@
       body: JSON.stringify(payload),
     });
     const data = await res.json();
-    if (!res.ok) {
-      throw new Error(data.error || 'Action execution failed');
-    }
 
-    if (data.graphId) {
-      graphId = data.graphId;
-    }
-    if (data.selectedNodeId) {
-      selectedNodeId = data.selectedNodeId;
-    }
-    if (Array.isArray(data.createdNodeIds) && data.createdNodeIds.length > 0) {
-      pendingFocusNodeId = data.createdNodeIds[0];
-    }
+    try {
+      if (!res.ok) {
+        throw new Error(data.error || 'Action execution failed');
+      }
 
-    await loadGraph();
+      if (data.graphId) {
+        graphId = data.graphId;
+      }
+      if (data.selectedNodeId) {
+        selectedNodeId = data.selectedNodeId;
+      }
+      if (Array.isArray(data.createdNodeIds) && data.createdNodeIds.length > 0) {
+        pendingFocusNodeId = data.createdNodeIds[0];
+      }
+    } finally {
+      await loadGraph();
+    }
   }
 
   async function ensureGraph() {

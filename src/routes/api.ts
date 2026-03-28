@@ -448,32 +448,42 @@ router.post('/brainstorm/execute', async (req: Request, res: Response) => {
             break;
           }
 
-          const contextFromGraph = buildExecutionContextFromGraph(graphResult.graph, sourceNodeId);
-          const autoResult = await executeBrainstormAction(
-            {
-              action: autoAction,
-              context: contextFromGraph,
-              providerOverride: provider,
-              modelOverride: model,
-            },
-            getProvider,
-          );
+          try {
+            const contextFromGraph = buildExecutionContextFromGraph(graphResult.graph, sourceNodeId);
+            const autoResult = await executeBrainstormAction(
+              {
+                action: autoAction,
+                context: contextFromGraph,
+                providerOverride: provider,
+                modelOverride: model,
+              },
+              getProvider,
+            );
 
-          const inserted = appendBubblesToGraph({
-            graphId: targetGraphId,
-            parentNodeIds: [sourceNodeId],
-            bubbles: autoResult.bubbles,
-            actor: autoResult.actor,
-            mode: autoAction.branching,
-            outputMode: autoAction.output_mode,
-          });
+            const inserted = appendBubblesToGraph({
+              graphId: targetGraphId,
+              parentNodeIds: [sourceNodeId],
+              bubbles: autoResult.bubbles,
+              actor: autoResult.actor,
+              mode: autoAction.branching,
+              outputMode: autoAction.output_mode,
+            });
 
-          autoExecutions.push({
-            action: autoAction.name,
-            parentNodeId: sourceNodeId,
-            createdNodeIds: inserted.createdNodeIds,
-            bubbleCount: autoResult.bubbles.length,
-          });
+            autoExecutions.push({
+              action: autoAction.name,
+              parentNodeId: sourceNodeId,
+              createdNodeIds: inserted.createdNodeIds,
+              bubbleCount: autoResult.bubbles.length,
+            });
+          } catch {
+            autoExecutions.push({
+              action: autoAction.name,
+              parentNodeId: sourceNodeId,
+              createdNodeIds: [],
+              bubbleCount: 0,
+              error: `Auto-action '${autoAction.name}' failed`,
+            } as typeof autoExecutions[number] & { error: string });
+          }
           autoCount += 1;
         }
       }

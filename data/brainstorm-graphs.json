@@ -2,82 +2,64 @@
   "version": 1,
   "graphs": [
     {
-      "id": "default",
-      "name": "default",
+      "id": "test-graph",
+      "name": "test-graph",
       "bookmarked": false,
-      "createdAt": "2026-03-26T04:40:47.222Z",
-      "updatedAt": "2026-03-27T22:13:29.216Z",
-      "rootNodeId": "root-1774500047222-kdyj7b",
-      "selectedNodeId": "bubble-1774502475487-6xlodr",
+      "createdAt": "2026-03-28T05:53:04.273Z",
+      "updatedAt": "2026-03-28T05:53:04.273Z",
+      "rootNodeId": "root-1774677184272-mionso",
+      "selectedNodeId": "bubble-1774677184273-g50zah",
       "nodes": [
         {
-          "id": "root-1774500047222-kdyj7b",
+          "id": "root-1774677184272-mionso",
           "type": "root",
           "content": "Brainstorm root",
           "actor": "system",
-          "createdAt": "2026-03-26T04:40:47.222Z",
-          "position": {
-            "x": 21,
-            "y": 17
-          }
+          "createdAt": "2026-03-28T05:53:04.272Z"
         },
         {
-          "id": "bubble-1774502475487-6xlodr",
+          "id": "bubble-1774677184273-g50zah",
           "type": "question",
-          "content": "Why is the sky blue",
+          "content": "Why is the sky blue?",
           "actor": "user",
-          "createdAt": "2026-03-26T05:21:15.487Z",
-          "position": {
-            "x": 399,
-            "y": 41
-          }
-        },
-        {
-          "id": "bubble-1774502515393-amunze",
-          "type": "clarification",
-          "content": "**Question:** Are you asking about the sky’s color under normal daylight conditions, or are you curious about why it appears different during sunrise/sunset or in other environments (e.g., underwater, space)?  \n\n**Possible answers the user might give:**  \n1. \"I want to know why it’s blue during the day, not other times.\"  \n2. \"What causes the sky to look different at sunrise or sunset?\"  \n3. \"Does the sky’s color change in space or underwater?\"",
-          "actor": "facilitator",
-          "createdAt": "2026-03-26T05:21:55.393Z",
-          "position": {
-            "x": 725,
-            "y": 14
-          }
-        },
-        {
-          "id": "bubble-1774502604070-gt96j1",
-          "type": "assumption",
-          "content": "**Assumption:** The questions at the second level of the branching structure are the critical points that need to be explored to solve the main problem.  \n\n**Why it matters:** If this assumption is incorrect, the brainstorming session might waste time on tangential questions or miss the core issues. For example, if the second-level questions are not actually the root causes or key constraints, the session could fail to address the problem effectively. This assumption shapes how the team prioritizes ideas and ensures the discussion remains focused on actionable insights. Without it, the structure might become a superficial exercise rather than a tool for deep problem-solving.",
-          "actor": "facilitator",
-          "createdAt": "2026-03-26T05:23:24.070Z"
-        },
-        {
-          "id": "bubble-1774502723863-skxvtq",
-          "type": "context",
-          "content": "The sky appears blue due to a phenomenon called **Rayleigh scattering**, which describes how light interacts with the Earth's atmosphere. Here's a structured explanation with scientific context, historical background, and real-world examples:\n\n---\n\n### **1. Rayleigh Scattering: The Core Mechanism**\n- **Light and Wavelengths**: Sunlight consists of visible light, which is a spectrum of colors (violet, blue, green, yellow, orange, red). Each color has a distinct wavelength, with **blue/violet** having the shortest wavelengths (~400–450 nm) and **red** having the longest (~620–750 nm).\n- **Atmospheric Interaction**: When sunlight passes through Earth’s atmosphere, it interacts with molecules (primarily **nitrogen** and **oxygen**) and small particles. Shorter wavelengths (blue/violet) are scattered more efficiently in all directions by these molecules, a process known as **Rayleigh scattering**. This scattered blue light dominates the sky’s color.\n\n---\n\n### **2. Why Blue, Not Violet?**\n- **Human Eye Sensitivity**: While violet light is scattered more than blue, the **human eye is less sensitive to violet** (peak sensitivity is around green light). Additionally, the sun emits more blue light than violet, and some violet light is absorbed by the upper atmosphere (e.g., ozone layer). These factors combine to make the sky appear **blue** rather than violet.\n\n---\n\n### **3. Historical Context and Prior Art**\n- **John Tyndall (1860s)**: First demonstrated that gases scatter shorter wavelengths of light, laying the groundwork for understanding atmospheric optics.\n- **Lord Rayleigh (1871)**: Formalized the mathematical model for Rayleigh scattering, explaining why the sky is blue and why sunsets are red/orange. His work linked the inverse fourth power of wavelength ($ \\propto 1/\\lambda^4 $) to scattering efficiency.\n- **Modern Confirmation**: Spectroscopic studies and satellite data (e.g., NASA’s Earth Observing System) validate Rayleigh scattering as the dominant mechanism for scattering in clear atmospheres.\n\n---\n\n### **4. Real-World Examples and Variations**\n- **Sunrise/Sunset**: During these times, sunlight travels through more atmosphere, scattering most blue light away. The remaining red/orange wavelengths dominate, creating the characteristic hues.\n- **Other Planets**: \n  - **Mars**: A reddish sky due to iron oxide (rust) particles in the atmosphere, which scatter light differently.\n  - **Venus**: A thick cloud cover of sulfuric acid droplets scatters all wavelengths equally, resulting in a white sky.\n- **Pollution Effects**: In urban areas, particulate matter (e.g., soot, dust) scatters light more uniformly, leading to **gray or brown skies** (Mie scattering, which is wavelength-independent).\n\n---\n\n### **5. Key Scientific Principles**\n- **Scattering Efficiency**: Rayleigh scattering is proportional to $ 1/\\lambda^4 $, meaning shorter wavelengths are scattered much more than longer ones.\n- **Atmospheric Composition**: Nitrogen and oxygen molecules (diameter ~0.3 nm) are the primary contributors to Rayleigh scattering, as their size is much smaller than the wavelength of visible light.\n\n---\n\n### **6. Uncertainties and Nuances**\n- **Scattering in Clouds**: Larger particles (e.g., water droplets in clouds) scatter all wavelengths equally, producing white or gray skies (Mie scattering).\n- **Auroras**: During polar storms, charged particles collide with atmospheric gases, producing green (oxygen) or red (nitrogen) auroras, unrelated to Rayleigh scattering.\n\n---\n\n### **Conclusion**\nThe blue sky is a direct result of Rayleigh scattering, a phenomenon first explained by Rayleigh and rooted in the physics of light-matter interactions. Variations in atmospheric composition, particle size, and sunlight angle (e.g., sunrise/sunset) further modulate this effect, creating the dynamic range of sky colors observed in nature.",
-          "actor": "researcher",
-          "createdAt": "2026-03-26T05:25:23.863Z",
-          "position": {
-            "x": 713,
-            "y": 335
-          }
+          "createdAt": "2026-03-28T05:53:04.273Z"
         }
       ],
       "edges": [
         {
-          "from": "root-1774500047222-kdyj7b",
-          "to": "bubble-1774502475487-6xlodr"
+          "from": "root-1774677184272-mionso",
+          "to": "bubble-1774677184273-g50zah"
+        }
+      ]
+    },
+    {
+      "id": "default",
+      "name": "default",
+      "bookmarked": false,
+      "createdAt": "2026-03-28T05:53:17.225Z",
+      "updatedAt": "2026-03-28T05:53:43.285Z",
+      "rootNodeId": "root-1774677197225-wyo315",
+      "selectedNodeId": "bubble-1774677223285-kehemf",
+      "nodes": [
+        {
+          "id": "root-1774677197225-wyo315",
+          "type": "root",
+          "content": "Brainstorm root",
+          "actor": "system",
+          "createdAt": "2026-03-28T05:53:17.225Z"
         },
         {
-          "from": "bubble-1774502475487-6xlodr",
-          "to": "bubble-1774502515393-amunze"
-        },
+          "id": "bubble-1774677223285-kehemf",
+          "type": "question",
+          "content": "How does photosynthesis work?",
+          "actor": "user",
+          "createdAt": "2026-03-28T05:53:43.285Z"
+        }
+      ],
+      "edges": [
         {
-          "from": "bubble-1774502475487-6xlodr",
-          "to": "bubble-1774502604070-gt96j1"
-        },
-        {
-          "from": "bubble-1774502475487-6xlodr",
-          "to": "bubble-1774502723863-skxvtq"
+          "from": "root-1774677197225-wyo315",
+          "to": "bubble-1774677223285-kehemf"
         }
       ]
     }
