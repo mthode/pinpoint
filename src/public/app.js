@@ -321,12 +321,14 @@
       : [];
   }
 
-  function normalizeHydratedGraph(graph) {
+  function normalizeHydratedGraph(graph, options = {}) {
     if (!graph || typeof graph !== 'object') {
       return graph;
     }
 
-    const pendingOptimisticRoots = getPendingOptimisticRootNodes();
+    const pendingOptimisticRoots = options.preservePendingOptimisticRoots === false
+      ? []
+      : getPendingOptimisticRootNodes();
     const incomingNodeIds = new Set(
       Array.isArray(graph.nodes)
         ? graph.nodes
@@ -410,7 +412,7 @@
       selectedNodeId: nextSelectedNodeId,
       nodes,
       edges: Array.isArray(baseGraph.edges) ? [...baseGraph.edges] : [],
-    });
+    }, { preservePendingOptimisticRoots: false });
   }
 
   function isPendingNode(node) {
@@ -566,6 +568,14 @@
     selectedNodeIdsForMerge.clear();
     dismissNodePopup();
     const optimisticRootNodeId = createOptimisticRootNodeId();
+    let optimisticRootRemoved = false;
+    const clearOptimisticRootNode = () => {
+      if (optimisticRootRemoved) {
+        return;
+      }
+      removeOptimisticRootNode(optimisticRootNodeId, previousSelectedNodeId);
+      optimisticRootRemoved = true;
+    };
     payload.clientNodeIds = [optimisticRootNodeId];
     renderOptimisticRootNode(
       optimisticRootNodeId,
@@ -590,12 +600,13 @@
       if (data.selectedNodeId) selectedNodeId = data.selectedNodeId;
       if (Array.isArray(data.createdNodeIds) && data.createdNodeIds.length > 0) {
         createdRootNodeId = data.createdNodeIds[0];
+        clearOptimisticRootNode();
       } else {
-        removeOptimisticRootNode(optimisticRootNodeId, previousSelectedNodeId);
+        clearOptimisticRootNode();
       }
       hasPendingAutoActions = Boolean(data.pendingAutoActions);
     } catch (err) {
-      removeOptimisticRootNode(optimisticRootNodeId, previousSelectedNodeId);
+      clearOptimisticRootNode();
       showError(err.message || 'Failed to create bubble');
     } finally {
       await loadGraph(createdRootNodeId, { skipFocus: true });
@@ -814,8 +825,8 @@
     await loadGraphList();
   }
 
-  function hydrateGraphState(graph) {
-    const normalizedGraph = normalizeHydratedGraph(graph);
+  function hydrateGraphState(graph, options = {}) {
+    const normalizedGraph = normalizeHydratedGraph(graph, options);
     currentGraphSnapshot = normalizedGraph;
     graphId = normalizedGraph.id || graphId;
     graphName = normalizedGraph.name || graphId;

@@ -94,6 +94,7 @@ describe('background root creation', () => {
       edges: [],
     };
     const executeBodies = [];
+    const persistedNodeId = 'bubble-persisted-1';
 
     window.fetch = jest.fn(async (resource, init = {}) => {
       const url = typeof resource === 'string' ? resource : resource.url;
@@ -146,22 +147,21 @@ describe('background root creation', () => {
       if (url === '/api/brainstorm/execute') {
         const body = JSON.parse(init.body);
         executeBodies.push(body);
-        const createdId = body.clientNodeIds[0];
         graphState.nodes = [
           ...graphState.nodes,
           {
-            id: createdId,
+            id: persistedNodeId,
             type: 'question',
             content: body.userInput,
             position: body.position,
           },
         ];
-        graphState.selectedNodeId = createdId;
+        graphState.selectedNodeId = persistedNodeId;
         graphState.updatedAt = '2026-03-28T00:00:01.000Z';
         return jsonResponse({
           graphId: graphState.id,
-          selectedNodeId: createdId,
-          createdNodeIds: [createdId],
+          selectedNodeId: persistedNodeId,
+          createdNodeIds: [persistedNodeId],
           pendingAutoActions: false,
         });
       }
@@ -209,12 +209,18 @@ describe('background root creation', () => {
     const createdNode = Array.from(document.querySelectorAll('.graph-node'))
       .find((node) => node.textContent.includes('Background root question'));
     expect(createdNode).toBeTruthy();
+    expect(
+      Array.from(document.querySelectorAll('.graph-node'))
+        .filter((node) => node.textContent.includes('Background root question')),
+    ).toHaveLength(1);
     expect(createdNode.style.left).toBe('420px');
     expect(createdNode.style.top).toBe('260px');
+    expect(createdNode.className).not.toContain('pending');
     expect(createdNode.textContent).toContain('Select');
     expect(createdNode.textContent).not.toContain('Unselect');
     expect(graphState.edges).toEqual([]);
     expect(graphSummary.textContent).toContain('Edges: 0');
+    expect(graphSummary.textContent).toContain('Nodes: 2');
     expect(graphCanvas.scrollLeft).toBe(0);
     expect(graphCanvas.scrollTop).toBe(0);
     expect(
