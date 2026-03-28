@@ -310,6 +310,7 @@ describe('POST /api/brainstorm/execute', () => {
     expect(res.status).toBe(200);
     expect(Array.isArray(res.body.createdNodeIds)).toBe(true);
     expect(res.body.createdNodeIds.length).toBe(1);
+    expect(res.body.parentNodeIds).toEqual([]);
 
     const graphRes = await request(app).get('/api/brainstorm/graphs/root-node-test');
     expect(graphRes.status).toBe(200);

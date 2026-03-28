@@ -405,11 +405,13 @@ router.post('/brainstorm/execute', async (req: Request, res: Response) => {
 
     const targetGraphId = graphId && graphId.trim() ? graphId : 'default';
     const graph = getOrCreateGraph(targetGraphId);
-    const resolvedParentIds = Array.isArray(parentNodeIds) && parentNodeIds.length > 0
-      ? parentNodeIds
-      : parentNodeId
-        ? [parentNodeId]
-        : [graph.selectedNodeId || graph.rootNodeId];
+    const resolvedParentIds = createAsRoot
+      ? []
+      : Array.isArray(parentNodeIds) && parentNodeIds.length > 0
+        ? parentNodeIds
+        : parentNodeId
+          ? [parentNodeId]
+          : [graph.selectedNodeId || graph.rootNodeId];
 
     const graphResult = appendBubblesToGraph({
       graphId: targetGraphId,
