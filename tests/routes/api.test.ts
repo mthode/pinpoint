@@ -6,50 +6,68 @@ import path from 'path';
 const storePath = path.join(process.cwd(), '.tmp-test-brainstorm-store.json');
 process.env.BRAINSTORM_STORE_PATH = storePath;
 
+const mockOllamaProvider = {
+  name: 'ollama',
+  isAvailable: jest.fn(),
+  listModels: jest.fn(),
+  chat: jest.fn(),
+};
+
+const mockOllamaNetworkProvider = {
+  name: 'ollama-network',
+  isAvailable: jest.fn(),
+  listModels: jest.fn(),
+  chat: jest.fn(),
+};
+
+const mockCopilotCliProvider = {
+  name: 'copilot-cli',
+  isAvailable: jest.fn(),
+  listModels: jest.fn(),
+  chat: jest.fn(),
+};
+
 beforeEach(() => {
   if (fs.existsSync(storePath)) {
     fs.unlinkSync(storePath);
   }
+
+  mockOllamaProvider.isAvailable.mockResolvedValue(true);
+  mockOllamaProvider.listModels.mockResolvedValue(['llama2:latest', 'mistral:latest']);
+  mockOllamaProvider.chat.mockResolvedValue({
+    content: 'Hello from mock!',
+    model: 'llama2:latest',
+    provider: 'ollama',
+  });
+
+  mockOllamaNetworkProvider.isAvailable.mockResolvedValue(true);
+  mockOllamaNetworkProvider.listModels.mockResolvedValue(['gemma3:1b', 'llama2:latest']);
+  mockOllamaNetworkProvider.chat.mockResolvedValue({
+    content: 'Hello from network mock!',
+    model: 'llama2:latest',
+    provider: 'ollama-network',
+  });
+
+  mockCopilotCliProvider.isAvailable.mockResolvedValue(false);
+  mockCopilotCliProvider.listModels.mockResolvedValue(['default']);
+  mockCopilotCliProvider.chat.mockResolvedValue({
+    content: 'Hello from copilot mock!',
+    model: 'default',
+    provider: 'copilot-cli',
+  });
 });
 
 // We need to mock the providers before importing the router
 jest.mock('../../src/services/ollama-provider', () => ({
-  OllamaProvider: jest.fn().mockImplementation(() => ({
-    name: 'ollama',
-    isAvailable: jest.fn().mockResolvedValue(true),
-    listModels: jest.fn().mockResolvedValue(['llama2:latest', 'mistral:latest']),
-    chat: jest.fn().mockResolvedValue({
-      content: 'Hello from mock!',
-      model: 'llama2:latest',
-      provider: 'ollama',
-    }),
-  })),
+  OllamaProvider: jest.fn().mockImplementation(() => mockOllamaProvider),
 }));
 
 jest.mock('../../src/services/ollama-network-provider', () => ({
-  OllamaNetworkProvider: jest.fn().mockImplementation(() => ({
-    name: 'ollama-network',
-    isAvailable: jest.fn().mockResolvedValue(true),
-    listModels: jest.fn().mockResolvedValue(['llama2:latest']),
-    chat: jest.fn().mockResolvedValue({
-      content: 'Hello from network mock!',
-      model: 'llama2:latest',
-      provider: 'ollama-network',
-    }),
-  })),
+  OllamaNetworkProvider: jest.fn().mockImplementation(() => mockOllamaNetworkProvider),
 }));
 
 jest.mock('../../src/services/copilot-cli-provider', () => ({
-  CopilotCliProvider: jest.fn().mockImplementation(() => ({
-    name: 'copilot-cli',
-    isAvailable: jest.fn().mockResolvedValue(false),
-    listModels: jest.fn().mockResolvedValue(['default']),
-    chat: jest.fn().mockResolvedValue({
-      content: 'Hello from copilot mock!',
-      model: 'default',
-      provider: 'copilot-cli',
-    }),
-  })),
+  CopilotCliProvider: jest.fn().mockImplementation(() => mockCopilotCliProvider),
 }));
 
 import apiRouter from '../../src/routes/api';
@@ -81,6 +99,32 @@ describe('GET /api/models', () => {
     const res = await request(app).get('/api/models?provider=unknown-provider');
     expect(res.status).toBe(404);
     expect(res.body).toHaveProperty('error');
+  });
+});
+
+describe('GET /api/default-model', () => {
+  it('returns the ollama-network gemma3:1b default when available', async () => {
+    const res = await request(app).get('/api/default-model');
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({
+      provider: 'ollama-network',
+      model: 'gemma3:1b',
+      fallback: false,
+    });
+  });
+
+  it('falls back to the built-in dummy model when the default model is unavailable', async () => {
+    mockOllamaNetworkProvider.isAvailable.mockResolvedValue(false);
+
+    const res = await request(app).get('/api/default-model');
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({
+      provider: 'builtin',
+      model: 'dummy',
+      fallback: true,
+    });
   });
 });
 

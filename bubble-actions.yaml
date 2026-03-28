@@ -9,7 +9,7 @@
 agents:
   facilitator:
     description: "Guides the brainstorming process"
-    default_model: "ollama-network/llama3"
+    default_model: "ollama-network/gemma3:1b"
     system_prompt: |
       You are a skilled facilitator guiding a brainstorming session.
       Your job is to help the user clarify their thinking, not to answer
@@ -18,7 +18,7 @@ agents:
 
   explorer:
     description: "Generates creative alternatives"
-    default_model: "ollama-network/llama3"
+    default_model: "ollama-network/gemma3:1b"
     system_prompt: |
       You are a creative thinker who generates unconventional alternatives.
       When presented with an idea, produce multiple distinct approaches.
@@ -27,7 +27,7 @@ agents:
 
   critic:
     description: "Identifies risks and weaknesses"
-    default_model: "ollama-network/llama3"
+    default_model: "ollama-network/gemma3:1b"
     system_prompt: |
       You are a critical analyst. Your job is to find flaws, risks, and
       hidden assumptions in ideas. Be specific — cite which part of the
@@ -36,7 +36,7 @@ agents:
 
   synthesizer:
     description: "Merges insights from multiple branches"
-    default_model: "ollama-network/llama3"
+    default_model: "ollama-network/gemma3:1b"
     system_prompt: |
       You are a synthesizer who finds unity in opposing ideas. Given two
       or more branches of thought, identify the core strengths of each
@@ -45,7 +45,7 @@ agents:
 
   researcher:
     description: "Provides factual context and examples"
-    default_model: "ollama-network/llama3"
+    default_model: "ollama-network/gemma3:1b"
     system_prompt: |
       You are a research assistant. Provide relevant factual context,
       real-world examples, and prior art. Ground abstract discussions

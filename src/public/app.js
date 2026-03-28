@@ -67,8 +67,24 @@
   let graphEdgeCache = [];
   /** @type {Array<{id: string; name: string; bookmarked: boolean; createdAt: string; updatedAt: string; nodeCount: number}>} */
   let graphSummaryCache = [];
+  const dummyProviderName = 'builtin';
+  const dummyModelName = 'dummy';
+  const defaultProviderName = 'ollama-network';
+  const defaultModelName = 'gemma3:1b';
 
-  async function loadModels() {
+  function ensureDummyProviderOption() {
+    const existing = Array.from(providerSelect.options).find((option) => option.value === dummyProviderName);
+    if (existing) {
+      return;
+    }
+
+    const opt = document.createElement('option');
+    opt.value = dummyProviderName;
+    opt.textContent = 'Built-in Dummy';
+    providerSelect.appendChild(opt);
+  }
+
+  async function loadModels(preferredModel) {
     const provider = providerSelect.value;
     modelSelect.innerHTML = '<option value="">Loading...</option>';
     modelSelect.disabled = true;
@@ -84,6 +100,15 @@
           opt.textContent = m;
           modelSelect.appendChild(opt);
         });
+        const selectedModel =
+          typeof preferredModel === 'string'
+            ? preferredModel
+            : provider === defaultProviderName
+              ? defaultModelName
+              : '';
+        if (selectedModel && data.models.includes(selectedModel)) {
+          modelSelect.value = selectedModel;
+        }
       } else {
         modelSelect.innerHTML = '<option value="">No models found</option>';
       }
@@ -92,6 +117,25 @@
       showError(err.message || 'Could not load models');
     } finally {
       modelSelect.disabled = false;
+    }
+  }
+
+  async function initializeModelSelection() {
+    try {
+      const res = await fetch('/api/default-model');
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to check default model');
+
+      if (data.fallback && data.provider === dummyProviderName) {
+        ensureDummyProviderOption();
+      }
+
+      providerSelect.value = data.provider || defaultProviderName;
+      await loadModels(data.model || (data.fallback ? dummyModelName : defaultModelName));
+    } catch (err) {
+      providerSelect.value = defaultProviderName;
+      await loadModels(defaultModelName);
+      showError(err.message || 'Could not determine default model');
     }
   }
 
@@ -1764,7 +1808,9 @@
 
   configGearButton.addEventListener('click', toggleConfigDrawer);
   drawerBackdrop.addEventListener('click', closeConfigDrawer);
-  providerSelect.addEventListener('change', loadModels);
+  providerSelect.addEventListener('change', () => {
+    loadModels();
+  });
   triggerSelect.addEventListener('change', loadActionsForCurrentTrigger);
   refreshActionsButton.addEventListener('click', loadBrainstormConfig);
   autoActionsToggle.addEventListener('change', () => {
@@ -1898,6 +1944,6 @@
   });
 
   ensureGraph();
-  loadModels();
+  initializeModelSelection();
   loadBrainstormConfig();
 })();
