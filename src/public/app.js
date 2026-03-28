@@ -1466,7 +1466,7 @@
           return;
         }
 
-        await new Promise((resolve) => setTimeout(resolve, 75));
+        await new Promise((resolve) => setTimeout(resolve, 100));
       }
 
       if (latestGraph) {
