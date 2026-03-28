@@ -57,7 +57,15 @@
 
     const bubble = document.createElement('div');
     bubble.className = 'message-bubble';
-    bubble.textContent = content;
+
+    if (content === null) {
+      bubble.classList.add('bubble-loading');
+      bubble.appendChild(document.createElement('span'));
+      bubble.appendChild(document.createElement('span'));
+      bubble.appendChild(document.createElement('span'));
+    } else {
+      bubble.textContent = content;
+    }
 
     wrapper.appendChild(roleLabel);
     wrapper.appendChild(bubble);
@@ -74,6 +82,20 @@
 
     chatMessages.appendChild(wrapper);
     scrollToBottom();
+    return wrapper;
+  }
+
+  function fillMessage(wrapper, content, meta) {
+    const bubble = wrapper.querySelector('.message-bubble');
+    bubble.classList.remove('bubble-loading');
+    bubble.textContent = content;
+
+    if (meta) {
+      const metaEl = document.createElement('div');
+      metaEl.className = 'message-meta';
+      metaEl.textContent = meta;
+      wrapper.appendChild(metaEl);
+    }
   }
 
   function scrollToBottom() {
@@ -98,6 +120,7 @@
     messageInput.value = '';
     messageInput.style.height = 'auto';
 
+    const assistantWrapper = appendMessage('assistant', null);
     setLoading(true);
     try {
       const res = await fetch('/api/chat', {
@@ -113,9 +136,10 @@
       if (!res.ok) throw new Error(data.error || 'Chat request failed');
 
       conversationHistory.push({ role: 'assistant', content: data.content });
-      appendMessage('assistant', data.content, `${data.provider} · ${data.model}`);
+      fillMessage(assistantWrapper, data.content, `${data.provider} · ${data.model}`);
     } catch (err) {
       conversationHistory.pop();
+      assistantWrapper.remove();
       showError(err.message || 'Failed to get AI response');
     } finally {
       setLoading(false);
