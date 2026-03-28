@@ -445,6 +445,9 @@
 
       if (data.graphId) graphId = data.graphId;
       if (data.selectedNodeId) selectedNodeId = data.selectedNodeId;
+      if (Array.isArray(data.createdNodeIds) && data.createdNodeIds.length > 0) {
+        pendingFocusNodeId = data.createdNodeIds[0];
+      }
       await loadGraph();
     } catch (err) {
       showError(err.message || 'Failed to create bubble');
@@ -517,6 +520,9 @@
     }
     if (data.selectedNodeId) {
       selectedNodeId = data.selectedNodeId;
+    }
+    if (Array.isArray(data.createdNodeIds) && data.createdNodeIds.length > 0) {
+      pendingFocusNodeId = data.createdNodeIds[0];
     }
 
     await loadGraph();
@@ -679,6 +685,8 @@
     const activeSearchNodeId = graphSearchMatches[graphSearchCursor] || '';
     graphNodes.style.width = `${layout.width}px`;
     graphNodes.style.height = `${layout.height}px`;
+    graphEdges.style.width = `${layout.width}px`;
+    graphEdges.style.height = `${layout.height}px`;
     graphEdges.setAttribute('viewBox', `0 0 ${layout.width} ${layout.height}`);
 
     layout.edgeLines.forEach((edge) => {
@@ -1317,13 +1325,17 @@
       });
     });
 
+    const maxNodeRight = layoutNodes.reduce((m, n) => Math.max(m, n.x + nodeWidth * zoom), 0);
+    const maxNodeBottom = layoutNodes.reduce((m, n) => Math.max(m, n.y + nodeHeight * zoom), 0);
     const width = Math.max(
       graphCanvas.clientWidth,
       (padding * 2 + (sortedDepths.length || 1) * nodeWidth + Math.max(0, sortedDepths.length - 1) * horizontalGap) * zoom,
+      maxNodeRight + padding * zoom,
     );
     const height = Math.max(
       graphCanvas.clientHeight,
       (padding * 2 + maxRows * nodeHeight + Math.max(0, maxRows - 1) * verticalGap) * zoom,
+      maxNodeBottom + padding * zoom,
     );
 
     const byId = new Map(layoutNodes.map((n) => [n.id, n]));
