@@ -359,6 +359,8 @@ router.post('/brainstorm/execute', async (req: Request, res: Response) => {
     parentNodeId,
     parentNodeIds,
     applyAutoActions,
+    createAsRoot,
+    position,
   } = req.body as {
     action?: string;
     context?: ExecutionContextInput;
@@ -369,6 +371,8 @@ router.post('/brainstorm/execute', async (req: Request, res: Response) => {
     parentNodeId?: string;
     parentNodeIds?: string[];
     applyAutoActions?: boolean;
+    createAsRoot?: boolean;
+    position?: { x: number; y: number };
   };
 
   if (!actionName || typeof actionName !== 'string') {
@@ -414,6 +418,10 @@ router.post('/brainstorm/execute', async (req: Request, res: Response) => {
       actor: result.actor,
       mode: action.branching,
       outputMode: action.output_mode,
+      createAsRoot: Boolean(createAsRoot),
+      position: position && typeof position.x === 'number' && typeof position.y === 'number'
+        ? position
+        : undefined,
     });
 
     const autoExecutions: Array<{
@@ -421,6 +429,7 @@ router.post('/brainstorm/execute', async (req: Request, res: Response) => {
       parentNodeId: string;
       createdNodeIds: string[];
       bubbleCount: number;
+      error?: string;
     }> = [];
 
     const shouldRunAutoActions = applyAutoActions !== false;
@@ -484,7 +493,7 @@ router.post('/brainstorm/execute', async (req: Request, res: Response) => {
               createdNodeIds: [],
               bubbleCount: 0,
               error: `Auto-action '${autoAction.name}' failed`,
-            } as typeof autoExecutions[number] & { error: string });
+            });
           }
           autoCount += 1;
         }

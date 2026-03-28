@@ -291,17 +291,16 @@ export function appendBubblesToGraph(params: {
   actor: string;
   mode?: 'pause' | 'linear' | 'fork' | 'fork_multiple' | 'merge';
   outputMode?: 'chain';
+  createAsRoot?: boolean;
+  position?: { x: number; y: number };
 }): { graph: BrainstormGraph; createdNodeIds: string[] } {
   loadStoreIfNeeded();
 
   const graph = getOrCreateGraph(params.graphId);
   recordSnapshotBeforeMutation(graph);
   const createdNodeIds: string[] = [];
-  const parentIds = params.parentNodeIds.length ? params.parentNodeIds : [graph.selectedNodeId || graph.rootNodeId];
-  const mode = params.outputMode === 'chain' ? 'chain' : params.mode ?? 'linear';
 
-  if (mode === 'chain') {
-    let previousId = parentIds[0] || graph.rootNodeId;
+  if (params.createAsRoot) {
     for (const bubble of params.bubbles) {
       const id = nodeId('bubble');
       const node: GraphNode = {
@@ -310,43 +309,63 @@ export function appendBubblesToGraph(params: {
         content: bubble.content,
         actor: params.actor,
         createdAt: nowIso(),
+        ...(params.position ? { position: { x: Math.round(params.position.x), y: Math.round(params.position.y) } } : {}),
       };
       insertNode(graph, node);
-      insertEdge(graph, { from: previousId, to: id });
-      previousId = id;
-      createdNodeIds.push(id);
-    }
-  } else if (mode === 'merge') {
-    const first = params.bubbles[0];
-    if (first) {
-      const id = nodeId('bubble');
-      const node: GraphNode = {
-        id,
-        type: first.type,
-        content: first.content,
-        actor: params.actor,
-        createdAt: nowIso(),
-      };
-      insertNode(graph, node);
-      for (const parentId of parentIds) {
-        insertEdge(graph, { from: parentId, to: id });
-      }
       createdNodeIds.push(id);
     }
   } else {
-    const parentId = parentIds[0] || graph.rootNodeId;
-    for (const bubble of params.bubbles) {
-      const id = nodeId('bubble');
-      const node: GraphNode = {
-        id,
-        type: bubble.type,
-        content: bubble.content,
-        actor: params.actor,
-        createdAt: nowIso(),
-      };
-      insertNode(graph, node);
-      insertEdge(graph, { from: parentId, to: id });
-      createdNodeIds.push(id);
+    const parentIds = params.parentNodeIds.length ? params.parentNodeIds : [graph.selectedNodeId || graph.rootNodeId];
+    const mode = params.outputMode === 'chain' ? 'chain' : params.mode ?? 'linear';
+
+    if (mode === 'chain') {
+      let previousId = parentIds[0] || graph.rootNodeId;
+      for (const bubble of params.bubbles) {
+        const id = nodeId('bubble');
+        const node: GraphNode = {
+          id,
+          type: bubble.type,
+          content: bubble.content,
+          actor: params.actor,
+          createdAt: nowIso(),
+        };
+        insertNode(graph, node);
+        insertEdge(graph, { from: previousId, to: id });
+        previousId = id;
+        createdNodeIds.push(id);
+      }
+    } else if (mode === 'merge') {
+      const first = params.bubbles[0];
+      if (first) {
+        const id = nodeId('bubble');
+        const node: GraphNode = {
+          id,
+          type: first.type,
+          content: first.content,
+          actor: params.actor,
+          createdAt: nowIso(),
+        };
+        insertNode(graph, node);
+        for (const parentId of parentIds) {
+          insertEdge(graph, { from: parentId, to: id });
+        }
+        createdNodeIds.push(id);
+      }
+    } else {
+      const parentId = parentIds[0] || graph.rootNodeId;
+      for (const bubble of params.bubbles) {
+        const id = nodeId('bubble');
+        const node: GraphNode = {
+          id,
+          type: bubble.type,
+          content: bubble.content,
+          actor: params.actor,
+          createdAt: nowIso(),
+        };
+        insertNode(graph, node);
+        insertEdge(graph, { from: parentId, to: id });
+        createdNodeIds.push(id);
+      }
     }
   }
 

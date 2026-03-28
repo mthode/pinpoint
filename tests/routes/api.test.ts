@@ -283,6 +283,59 @@ describe('POST /api/brainstorm/execute', () => {
     expect(Array.isArray(res.body.autoExecutions)).toBe(true);
     expect(res.body.autoExecutions.length).toBe(0);
   });
+
+  it('creates a root node when createAsRoot is true', async () => {
+    const res = await request(app)
+      .post('/api/brainstorm/execute')
+      .send({
+        graphId: 'root-node-test',
+        action: 'ask_question',
+        userInput: 'A brand new root question',
+        applyAutoActions: false,
+        createAsRoot: true,
+        context: { parent: { content: 'root' } },
+      });
+
+    expect(res.status).toBe(200);
+    expect(Array.isArray(res.body.createdNodeIds)).toBe(true);
+    expect(res.body.createdNodeIds.length).toBe(1);
+
+    const graphRes = await request(app).get('/api/brainstorm/graphs/root-node-test');
+    expect(graphRes.status).toBe(200);
+
+    const createdNodeId = res.body.createdNodeIds[0];
+    const hasEdgeTo = graphRes.body.edges.some(
+      (e: { from: string; to: string }) => e.to === createdNodeId,
+    );
+    expect(hasEdgeTo).toBe(false);
+  });
+
+  it('stores position when createAsRoot includes position', async () => {
+    const res = await request(app)
+      .post('/api/brainstorm/execute')
+      .send({
+        graphId: 'root-pos-test',
+        action: 'ask_question',
+        userInput: 'Positioned root question',
+        applyAutoActions: false,
+        createAsRoot: true,
+        position: { x: 350, y: 200 },
+        context: { parent: { content: 'root' } },
+      });
+
+    expect(res.status).toBe(200);
+    expect(res.body.createdNodeIds.length).toBe(1);
+
+    const graphRes = await request(app).get('/api/brainstorm/graphs/root-pos-test');
+    expect(graphRes.status).toBe(200);
+
+    const createdNodeId = res.body.createdNodeIds[0];
+    const createdNode = graphRes.body.nodes.find(
+      (n: { id: string }) => n.id === createdNodeId,
+    );
+    expect(createdNode).toBeTruthy();
+    expect(createdNode.position).toEqual({ x: 350, y: 200 });
+  });
 });
 
 describe('Brainstorm graph endpoints', () => {

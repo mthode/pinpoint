@@ -430,7 +430,8 @@
       model: modelSelect.value,
       applyAutoActions: autoActionsToggle.checked,
       graphId,
-      parentNodeId: selectedNodeId || undefined,
+      createAsRoot: true,
+      position: { x: canvasX / graphZoom, y: canvasY / graphZoom },
       context: buildExecutionContext(),
     };
 
