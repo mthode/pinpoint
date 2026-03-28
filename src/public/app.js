@@ -61,6 +61,7 @@
   const selectedNodeIdsForMerge = new Set();
   const expandedNodeIds = new Set();
   const actionCacheByTrigger = new Map();
+  let optimisticRootNodeSequence = 0;
   /** @type {{id: string; type: string; content: string}[]} */
   let graphNodeCache = [];
   /** @type {{from: string; to: string}[]} */
@@ -304,6 +305,11 @@
     };
   }
 
+  function createOptimisticRootNodeId() {
+    optimisticRootNodeSequence += 1;
+    return `optimistic-root-${Date.now().toString(36)}-${optimisticRootNodeSequence}`;
+  }
+
   function renderOptimisticRootNode(nodeId, type, content, position, options = {}) {
     if (!nodeId || graphNodeCache.some((node) => node.id === nodeId)) {
       return;
@@ -534,7 +540,7 @@
     };
 
     const previousSelectedNodeId = selectedNodeId;
-    const optimisticRootNodeId = `optimistic-root-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+    const optimisticRootNodeId = createOptimisticRootNodeId();
     renderOptimisticRootNode(
       optimisticRootNodeId,
       result.type,
