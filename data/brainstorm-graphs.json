@@ -121,6 +121,47 @@
         }
       ],
       "edges": []
+    },
+    {
+      "id": "test-fresh",
+      "name": "test-fresh",
+      "bookmarked": false,
+      "createdAt": "2026-03-28T15:52:07.639Z",
+      "updatedAt": "2026-03-28T15:53:48.093Z",
+      "rootNodeId": "root-1774713127639-eg76v9",
+      "selectedNodeId": "bubble-1774713228093-dakes1",
+      "nodes": [
+        {
+          "id": "root-1774713127639-eg76v9",
+          "type": "root",
+          "content": "Brainstorm root",
+          "actor": "system",
+          "createdAt": "2026-03-28T15:52:07.639Z"
+        },
+        {
+          "id": "bubble-1774713133393-04u5jp",
+          "type": "question",
+          "content": "What is the meaning of life?",
+          "actor": "user",
+          "createdAt": "2026-03-28T15:52:13.393Z",
+          "position": {
+            "x": 300,
+            "y": 200
+          }
+        },
+        {
+          "id": "bubble-1774713228093-dakes1",
+          "type": "question",
+          "content": "What is gravity?",
+          "actor": "user",
+          "createdAt": "2026-03-28T15:53:48.093Z",
+          "position": {
+            "x": 600,
+            "y": 400
+          }
+        }
+      ],
+      "edges": []
     }
   ]
 }
