@@ -62,6 +62,8 @@
   const expandedNodeIds = new Set();
   const actionCacheByTrigger = new Map();
   let optimisticRootNodeSequence = 0;
+  const persistedRootNodeIds = new Set();
+  const persistedRootPositions = new Map();
   /** @type {{id: string; type: string; content: string}[]} */
   let graphNodeCache = [];
   /** @type {{from: string; to: string}[]} */
@@ -298,10 +300,52 @@
       name: graphName,
       bookmarked: graphBookmarked,
       history: graphHistory,
-      rootNodeId: '',
+      rootNodeId: currentGraphSnapshot?.rootNodeId || '',
       selectedNodeId,
       nodes: graphNodeCache,
       edges: graphEdgeCache,
+    };
+  }
+
+  function rememberPersistedRootNodePosition(nodeId, position) {
+    if (!nodeId || !position || typeof position.x !== 'number' || typeof position.y !== 'number') {
+      return;
+    }
+    persistedRootPositions.set(nodeId, {
+      x: Math.round(position.x),
+      y: Math.round(position.y),
+    });
+  }
+
+  function normalizeHydratedGraph(graph) {
+    if (!graph || typeof graph !== 'object') {
+      return graph;
+    }
+
+    const nodes = Array.isArray(graph.nodes)
+      ? graph.nodes.map((node) => {
+        if (!node || typeof node !== 'object') {
+          return node;
+        }
+        const persistedPosition = persistedRootPositions.get(node.id);
+        if (!persistedPosition) {
+          return node;
+        }
+        return {
+          ...node,
+          position: { ...persistedPosition },
+        };
+      })
+      : [];
+
+    const edges = Array.isArray(graph.edges)
+      ? graph.edges.filter((edge) => !persistedRootNodeIds.has(edge.to))
+      : [];
+
+    return {
+      ...graph,
+      nodes,
+      edges,
     };
   }
 
@@ -324,6 +368,7 @@
       pending: Boolean(options.pending),
       ...(position ? { position: { x: Math.round(position.x), y: Math.round(position.y) } } : {}),
     };
+    rememberPersistedRootNodePosition(nodeId, optimisticNode.position);
     const baseGraph = buildHydrationBaseGraph();
 
     pendingFocusNodeId = nodeId;
@@ -344,6 +389,7 @@
       return;
     }
 
+    const optimisticPosition = persistedRootPositions.get(nodeId);
     const baseGraph = buildHydrationBaseGraph();
     const nodes = Array.isArray(baseGraph.nodes)
       ? baseGraph.nodes.map((node) => (
@@ -356,6 +402,12 @@
     if (!nodes.some((node) => node.id === nextNodeId)) {
       return;
     }
+
+    persistedRootNodeIds.add(nextNodeId);
+    if (optimisticPosition) {
+      rememberPersistedRootNodePosition(nextNodeId, optimisticPosition);
+    }
+    persistedRootPositions.delete(nodeId);
 
     pendingFocusNodeId = nextNodeId;
     hydrateGraphState({
@@ -382,6 +434,8 @@
     const nextSelectedNodeId = baseGraph.selectedNodeId === nodeId
       ? (fallbackSelectedNodeId || baseGraph.rootNodeId || '')
       : baseGraph.selectedNodeId;
+
+    persistedRootPositions.delete(nodeId);
 
     hydrateGraphState({
       ...baseGraph,
@@ -794,14 +848,15 @@
   }
 
   function hydrateGraphState(graph) {
-    currentGraphSnapshot = graph;
-    graphId = graph.id || graphId;
-    graphName = graph.name || graphId;
-    graphBookmarked = Boolean(graph.bookmarked);
-    graphHistory = graph.history || { canUndo: false, canRedo: false, undoDepth: 0, redoDepth: 0 };
-    selectedNodeId = graph.selectedNodeId || graph.rootNodeId || selectedNodeId;
-    graphNodeCache = Array.isArray(graph.nodes) ? graph.nodes : [];
-    graphEdgeCache = Array.isArray(graph.edges) ? graph.edges : [];
+    const normalizedGraph = normalizeHydratedGraph(graph);
+    currentGraphSnapshot = normalizedGraph;
+    graphId = normalizedGraph.id || graphId;
+    graphName = normalizedGraph.name || graphId;
+    graphBookmarked = Boolean(normalizedGraph.bookmarked);
+    graphHistory = normalizedGraph.history || { canUndo: false, canRedo: false, undoDepth: 0, redoDepth: 0 };
+    selectedNodeId = normalizedGraph.selectedNodeId || normalizedGraph.rootNodeId || selectedNodeId;
+    graphNodeCache = Array.isArray(normalizedGraph.nodes) ? normalizedGraph.nodes : [];
+    graphEdgeCache = Array.isArray(normalizedGraph.edges) ? normalizedGraph.edges : [];
     recomputeGraphSearchMatches();
     if (selectedNodeId) {
       selectedNodeIdsForMerge.add(selectedNodeId);
@@ -813,7 +868,7 @@
     undoGraphButton.disabled = !graphHistory.canUndo;
     redoGraphButton.disabled = !graphHistory.canRedo;
     zoomLabel.textContent = `${Math.round(graphZoom * 100)}%`;
-    renderGraph(graph);
+    renderGraph(normalizedGraph);
   }
 
   function renderGraph(graph) {

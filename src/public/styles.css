@@ -331,6 +331,15 @@ body {
   transition: max-height 0.2s ease;
 }
 
+@keyframes pending-node-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .graph-node.expanded {
   max-height: none;
 }
@@ -348,10 +357,25 @@ body {
   border-style: dashed;
   opacity: 0.82;
   cursor: wait;
+  padding-right: 28px;
 }
 
 .graph-node.pending:active {
   cursor: wait;
+}
+
+.graph-node.pending::after {
+  content: '';
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 12px;
+  height: 12px;
+  border: 2px solid rgba(233, 69, 96, 0.3);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: pending-node-spin 0.9s linear infinite;
+  pointer-events: none;
 }
 
 .graph-node.multi-selected {
