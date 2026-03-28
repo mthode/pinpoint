@@ -100,12 +100,12 @@
           opt.textContent = m;
           modelSelect.appendChild(opt);
         });
-        const selectedModel =
-          typeof preferredModel === 'string'
-            ? preferredModel
-            : provider === defaultProviderName
-              ? defaultModelName
-              : '';
+        let selectedModel = '';
+        if (typeof preferredModel === 'string') {
+          selectedModel = preferredModel;
+        } else if (provider === defaultProviderName) {
+          selectedModel = defaultModelName;
+        }
         if (selectedModel && data.models.includes(selectedModel)) {
           modelSelect.value = selectedModel;
         }

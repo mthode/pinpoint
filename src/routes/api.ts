@@ -69,8 +69,9 @@ async function resolveDefaultModelSelection(): Promise<{
         fallback: false,
       };
     }
-  } catch (_err) {
-    // Fall through to the built-in dummy provider.
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.warn(`Failed to resolve default model '${DEFAULT_PROVIDER_NAME}/${DEFAULT_MODEL_NAME}': ${message}`);
   }
 
   return {
