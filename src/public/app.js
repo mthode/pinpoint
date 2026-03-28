@@ -62,8 +62,6 @@
   const expandedNodeIds = new Set();
   const actionCacheByTrigger = new Map();
   let optimisticRootNodeSequence = 0;
-  const persistedRootNodeIds = new Set();
-  const persistedRootPositions = new Map();
   /** @type {{id: string; type: string; content: string}[]} */
   let graphNodeCache = [];
   /** @type {{from: string; to: string}[]} */
@@ -307,16 +305,6 @@
     };
   }
 
-  function rememberPersistedRootNodePosition(nodeId, position) {
-    if (!nodeId || !position || typeof position.x !== 'number' || typeof position.y !== 'number') {
-      return;
-    }
-    persistedRootPositions.set(nodeId, {
-      x: Math.round(position.x),
-      y: Math.round(position.y),
-    });
-  }
-
   function getPendingOptimisticRootNodes() {
     return Array.isArray(graphNodeCache)
       ? graphNodeCache.filter((node) => (
@@ -342,21 +330,7 @@
         : [],
     );
 
-    const nodes = Array.isArray(graph.nodes)
-      ? graph.nodes.map((node) => {
-        if (!node || typeof node !== 'object') {
-          return node;
-        }
-        const persistedPosition = persistedRootPositions.get(node.id);
-        if (!persistedPosition) {
-          return node;
-        }
-        return {
-          ...node,
-          position: { ...persistedPosition },
-        };
-      })
-      : [];
+    const nodes = Array.isArray(graph.nodes) ? [...graph.nodes] : [];
 
     pendingOptimisticRoots.forEach((node) => {
       if (!incomingNodeIds.has(node.id)) {
@@ -364,9 +338,7 @@
       }
     });
 
-    const edges = Array.isArray(graph.edges)
-      ? graph.edges.filter((edge) => !persistedRootNodeIds.has(edge.to))
-      : [];
+    const edges = Array.isArray(graph.edges) ? [...graph.edges] : [];
 
     return {
       ...graph,
@@ -394,7 +366,6 @@
       pending: Boolean(options.pending),
       ...(position ? { position: { x: Math.round(position.x), y: Math.round(position.y) } } : {}),
     };
-    rememberPersistedRootNodePosition(nodeId, optimisticNode.position);
     const baseGraph = buildHydrationBaseGraph();
 
     pendingFocusNodeId = nodeId;
@@ -406,44 +377,6 @@
       history: graphHistory,
       selectedNodeId: nodeId,
       nodes: [...(Array.isArray(baseGraph.nodes) ? baseGraph.nodes : []), optimisticNode],
-      edges: Array.isArray(baseGraph.edges) ? [...baseGraph.edges] : [],
-    });
-  }
-
-  function reconcileOptimisticRootNode(nodeId, nextNodeId) {
-    if (!nodeId || !nextNodeId) {
-      return;
-    }
-
-    const optimisticPosition = persistedRootPositions.get(nodeId);
-    const baseGraph = buildHydrationBaseGraph();
-    const nodes = Array.isArray(baseGraph.nodes)
-      ? baseGraph.nodes.map((node) => (
-        node.id === nodeId
-          ? { ...node, id: nextNodeId, pending: false }
-          : node
-      ))
-      : [];
-
-    if (!nodes.some((node) => node.id === nextNodeId)) {
-      return;
-    }
-
-    persistedRootNodeIds.add(nextNodeId);
-    if (optimisticPosition) {
-      rememberPersistedRootNodePosition(nextNodeId, optimisticPosition);
-    }
-    persistedRootPositions.delete(nodeId);
-
-    pendingFocusNodeId = nextNodeId;
-    hydrateGraphState({
-      ...baseGraph,
-      id: graphId,
-      name: graphName,
-      bookmarked: graphBookmarked,
-      history: graphHistory,
-      selectedNodeId: nextNodeId,
-      nodes,
       edges: Array.isArray(baseGraph.edges) ? [...baseGraph.edges] : [],
     });
   }
@@ -460,8 +393,6 @@
     const nextSelectedNodeId = baseGraph.selectedNodeId === nodeId
       ? (fallbackSelectedNodeId || baseGraph.rootNodeId || '')
       : baseGraph.selectedNodeId;
-
-    persistedRootPositions.delete(nodeId);
 
     hydrateGraphState({
       ...baseGraph,
@@ -650,11 +581,7 @@
       if (data.selectedNodeId) selectedNodeId = data.selectedNodeId;
       if (Array.isArray(data.createdNodeIds) && data.createdNodeIds.length > 0) {
         createdRootNodeId = data.createdNodeIds[0];
-        if (createdRootNodeId !== optimisticRootNodeId) {
-          reconcileOptimisticRootNode(optimisticRootNodeId, createdRootNodeId);
-        } else {
-          pendingFocusNodeId = createdRootNodeId;
-        }
+        pendingFocusNodeId = createdRootNodeId;
       } else {
         removeOptimisticRootNode(optimisticRootNodeId, previousSelectedNodeId);
       }
