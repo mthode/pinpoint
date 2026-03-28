@@ -181,6 +181,11 @@ describe('background root creation', () => {
     await flushAsyncWork();
 
     document.getElementById('auto-actions-toggle').checked = false;
+    const initialRootNode = Array.from(document.querySelectorAll('.graph-node'))
+      .find((node) => node.textContent.includes('Brainstorm root'));
+    expect(initialRootNode).toBeTruthy();
+    expect(initialRootNode.style.left).toBe('20px');
+    expect(initialRootNode.style.top).toBe('20px');
     graphCanvas.scrollLeft = 0;
     graphCanvas.scrollTop = 0;
     graphCanvas.scrollTo.mockClear();
@@ -231,6 +236,11 @@ describe('background root creation', () => {
     expect(graphSummary.textContent).toContain('Nodes: 2');
     expect(graphCanvas.scrollLeft).toBe(0);
     expect(graphCanvas.scrollTop).toBe(0);
+    const finalRootNode = Array.from(document.querySelectorAll('.graph-node'))
+      .find((node) => node.textContent.includes('Brainstorm root'));
+    expect(finalRootNode).toBeTruthy();
+    expect(finalRootNode.style.left).toBe('20px');
+    expect(finalRootNode.style.top).toBe('20px');
     expect(
       graphCanvas.scrollTo.mock.calls.every((call) => call[0].left === 0 && call[0].top === 0),
     ).toBe(true);

@@ -321,6 +321,19 @@
       : [];
   }
 
+  function getCurrentLayoutPositions() {
+    if (!currentGraphSnapshot || !Array.isArray(currentGraphSnapshot.nodes) || !currentGraphSnapshot.nodes.length) {
+      return new Map();
+    }
+
+    return new Map(
+      buildGraphLayout(currentGraphSnapshot, 1).nodes.map((node) => [
+        node.id,
+        { x: Math.round(node.baseX), y: Math.round(node.baseY) },
+      ]),
+    );
+  }
+
   function normalizeHydratedGraph(graph, options = {}) {
     if (!graph || typeof graph !== 'object') {
       return graph;
@@ -336,8 +349,19 @@
           .map((node) => node.id)
         : [],
     );
-
-    const nodes = Array.isArray(graph.nodes) ? [...graph.nodes] : [];
+    const currentLayoutPositions = getCurrentLayoutPositions();
+    const nodes = Array.isArray(graph.nodes)
+      ? graph.nodes.map((node) => {
+        if (!node || typeof node !== 'object') {
+          return node;
+        }
+        if (typeof node.position?.x === 'number' && typeof node.position?.y === 'number') {
+          return node;
+        }
+        const currentPosition = currentLayoutPositions.get(node.id);
+        return currentPosition ? { ...node, position: currentPosition } : node;
+      })
+      : [];
 
     pendingOptimisticRoots.forEach((node) => {
       if (!incomingNodeIds.has(node.id)) {
