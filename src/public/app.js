@@ -439,33 +439,56 @@
     }, { preservePendingOptimisticRoots: false });
   }
 
-  function finalizeOptimisticRootNode(nodeId) {
+  function finalizeOptimisticRootNode(nodeId, options = {}) {
     if (!nodeId) {
       return;
     }
 
     const baseGraph = buildHydrationBaseGraph();
+    const nextNodeId = typeof options.nextNodeId === 'string' && options.nextNodeId.trim()
+      ? options.nextNodeId.trim()
+      : nodeId;
     const nodes = Array.isArray(baseGraph.nodes)
-      ? baseGraph.nodes.map((node) => {
-        if (!node || node.id !== nodeId) {
-          return node;
+      ? baseGraph.nodes.reduce((acc, node) => {
+        if (!node) {
+          acc.push(node);
+          return acc;
         }
-        return {
+        if (node.id === nextNodeId && nextNodeId !== nodeId) {
+          return acc;
+        }
+        if (node.id !== nodeId) {
+          acc.push(node);
+          return acc;
+        }
+        acc.push({
           ...node,
+          id: nextNodeId,
           pending: false,
-        };
-      })
+        });
+        return acc;
+      }, [])
       : [];
+    const edges = Array.isArray(baseGraph.edges)
+      ? baseGraph.edges.map((edge) => ({
+        ...edge,
+        from: edge.from === nodeId ? nextNodeId : edge.from,
+        to: edge.to === nodeId ? nextNodeId : edge.to,
+      }))
+      : [];
+    const nextSelectedNodeId = typeof options.selectedNodeId === 'string' && options.selectedNodeId.trim()
+      ? options.selectedNodeId.trim()
+      : nextNodeId;
 
     hydrateGraphState({
       ...baseGraph,
       id: graphId,
       name: graphName,
       bookmarked: graphBookmarked,
-      history: graphHistory,
-      selectedNodeId: nodeId,
+      history: options.history || graphHistory,
+      selectedNodeId: nextSelectedNodeId,
       nodes,
-      edges: Array.isArray(baseGraph.edges) ? [...baseGraph.edges] : [],
+      edges,
     }, { preservePendingOptimisticRoots: false });
   }
 
@@ -641,6 +664,7 @@
 
     let hasPendingAutoActions = false;
     let createdRootNodeId = '';
+    let shouldReloadGraph = false;
     try {
       const res = await fetch('/api/brainstorm/execute', {
         method: 'POST',
@@ -654,21 +678,26 @@
       if (data.selectedNodeId) selectedNodeId = data.selectedNodeId;
       if (Array.isArray(data.createdNodeIds) && data.createdNodeIds.length > 0) {
         createdRootNodeId = data.createdNodeIds[0];
-        if (createdRootNodeId === optimisticRootNodeId) {
-          finalizeOptimisticRootNode(optimisticRootNodeId);
-          optimisticRootRemoved = true;
-        } else {
-          clearOptimisticRootNode();
-        }
+        finalizeOptimisticRootNode(optimisticRootNodeId, {
+          nextNodeId: createdRootNodeId,
+          selectedNodeId: data.selectedNodeId || createdRootNodeId,
+          history: data.history,
+        });
+        optimisticRootRemoved = true;
       } else {
         clearOptimisticRootNode();
+        shouldReloadGraph = true;
       }
       hasPendingAutoActions = Boolean(data.pendingAutoActions);
     } catch (err) {
       clearOptimisticRootNode();
       showError(err.message || 'Failed to create bubble');
     } finally {
-      await loadGraph(createdRootNodeId, { skipFocus: true });
+      if (shouldReloadGraph) {
+        await loadGraph(createdRootNodeId, { skipFocus: true });
+      } else {
+        await loadGraphList();
+      }
     }
     if (hasPendingAutoActions) {
       scheduleAutoActionReload();
