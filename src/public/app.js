@@ -439,6 +439,36 @@
     }, { preservePendingOptimisticRoots: false });
   }
 
+  function finalizeOptimisticRootNode(nodeId) {
+    if (!nodeId) {
+      return;
+    }
+
+    const baseGraph = buildHydrationBaseGraph();
+    const nodes = Array.isArray(baseGraph.nodes)
+      ? baseGraph.nodes.map((node) => {
+        if (!node || node.id !== nodeId) {
+          return node;
+        }
+        return {
+          ...node,
+          pending: false,
+        };
+      })
+      : [];
+
+    hydrateGraphState({
+      ...baseGraph,
+      id: graphId,
+      name: graphName,
+      bookmarked: graphBookmarked,
+      history: graphHistory,
+      selectedNodeId: nodeId,
+      nodes,
+      edges: Array.isArray(baseGraph.edges) ? [...baseGraph.edges] : [],
+    }, { preservePendingOptimisticRoots: false });
+  }
+
   function isPendingNode(node) {
     return Boolean(node && node.pending);
   }
@@ -624,7 +654,12 @@
       if (data.selectedNodeId) selectedNodeId = data.selectedNodeId;
       if (Array.isArray(data.createdNodeIds) && data.createdNodeIds.length > 0) {
         createdRootNodeId = data.createdNodeIds[0];
-        clearOptimisticRootNode();
+        if (createdRootNodeId === optimisticRootNodeId) {
+          finalizeOptimisticRootNode(optimisticRootNodeId);
+          optimisticRootRemoved = true;
+        } else {
+          clearOptimisticRootNode();
+        }
       } else {
         clearOptimisticRootNode();
       }

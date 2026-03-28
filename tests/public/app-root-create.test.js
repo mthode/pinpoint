@@ -102,7 +102,7 @@ describe('background root creation', () => {
       edges: [],
     };
     const executeBodies = [];
-    const persistedNodeId = 'bubble-persisted-1';
+    let persistedNodeId = '';
 
     window.fetch = jest.fn(async (resource, init = {}) => {
       const url = typeof resource === 'string' ? resource : resource.url;
@@ -155,6 +155,7 @@ describe('background root creation', () => {
       if (url === '/api/brainstorm/execute') {
         const body = JSON.parse(init.body);
         executeBodies.push(body);
+        persistedNodeId = body.clientNodeIds[0];
         graphState.nodes = [
           ...graphState.nodes,
           {
@@ -211,6 +212,7 @@ describe('background root creation', () => {
       action: 'ask_question',
       createAsRoot: true,
       position: { x: 420, y: 260 },
+      clientNodeIds: [persistedNodeId],
       context: {
         parent: { content: '' },
         selected: { content: [] },
@@ -320,7 +322,7 @@ describe('background root creation', () => {
       ],
       edges: [],
     };
-    const persistedNodeId = 'bubble-persisted-delayed';
+    let persistedNodeId = '';
     const delayedGraphResponse = createDeferred();
 
     window.fetch = jest.fn(async (resource, init = {}) => {
@@ -376,6 +378,7 @@ describe('background root creation', () => {
 
       if (url === '/api/brainstorm/execute') {
         const body = JSON.parse(init.body);
+        persistedNodeId = body.clientNodeIds[0];
         graphState.nodes = [
           ...graphState.nodes,
           {
@@ -421,7 +424,10 @@ describe('background root creation', () => {
 
     const interimNodes = Array.from(document.querySelectorAll('.graph-node'))
       .filter((node) => node.textContent.includes('Delayed background root question'));
-    expect(interimNodes).toHaveLength(0);
+    expect(interimNodes).toHaveLength(1);
+    expect(interimNodes[0].className).not.toContain('pending');
+    expect(interimNodes[0].style.left).toBe('420px');
+    expect(interimNodes[0].style.top).toBe('260px');
     expect(document.querySelector('.graph-node.pending')).toBeNull();
 
     delayedGraphResponse.resolve();
@@ -431,6 +437,8 @@ describe('background root creation', () => {
       .filter((node) => node.textContent.includes('Delayed background root question'));
     expect(finalNodes).toHaveLength(1);
     expect(finalNodes[0].className).not.toContain('pending');
+    expect(finalNodes[0].style.left).toBe('420px');
+    expect(finalNodes[0].style.top).toBe('260px');
 
     dom.window.close();
   });
