@@ -418,7 +418,7 @@ router.post('/brainstorm/execute', async (req: Request, res: Response) => {
       actor: result.actor,
       mode: action.branching,
       outputMode: action.output_mode,
-      createAsRoot: Boolean(createAsRoot),
+      createAsRoot: !!createAsRoot,
       position: position && typeof position.x === 'number' && typeof position.y === 'number'
         ? position
         : undefined,

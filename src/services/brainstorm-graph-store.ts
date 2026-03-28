@@ -309,8 +309,10 @@ export function appendBubblesToGraph(params: {
         content: bubble.content,
         actor: params.actor,
         createdAt: nowIso(),
-        ...(params.position ? { position: { x: Math.round(params.position.x), y: Math.round(params.position.y) } } : {}),
       };
+      if (params.position) {
+        node.position = { x: Math.round(params.position.x), y: Math.round(params.position.y) };
+      }
       insertNode(graph, node);
       createdNodeIds.push(id);
     }
