@@ -342,6 +342,10 @@
     return normalizedGraph;
   }
 
+  function normalizeNodeContent(content) {
+    return String(content || '').trim().toLowerCase();
+  }
+
   function getPendingOptimisticRootNodes() {
     return Array.isArray(graphNodeCache)
       ? graphNodeCache.filter((node) => (
@@ -382,7 +386,7 @@
         : [],
     );
     const currentLayoutPositions = getCurrentLayoutPositions();
-    const nodes = Array.isArray(graph.nodes)
+    let nodes = Array.isArray(graph.nodes)
       ? graph.nodes.map((node) => {
         if (!node || typeof node !== 'object') {
           return node;
@@ -394,14 +398,69 @@
         return currentPosition ? { ...node, position: currentPosition } : node;
       })
       : [];
+    const duplicateRootNodeIds = new Set();
+    const droppedPendingIncomingIds = new Set();
+    const nonPendingByKey = new Map();
+    nodes.forEach((node) => {
+      if (!node || isPendingNode(node)) {
+        return;
+      }
+      const key = `${node.type || ''}::${normalizeNodeContent(node.content)}`;
+      if (!nonPendingByKey.has(key)) {
+        nonPendingByKey.set(key, []);
+      }
+      nonPendingByKey.get(key).push(node.id);
+    });
+    nodes = nodes.filter((node) => {
+      if (
+        !node
+        || !isPendingNode(node)
+        || typeof node.id !== 'string'
+        || !node.id.startsWith('optimistic-root-')
+      ) {
+        return true;
+      }
+      const key = `${node.type || ''}::${normalizeNodeContent(node.content)}`;
+      const matchingPersistedIds = nonPendingByKey.get(key) || [];
+      if (matchingPersistedIds.length === 0) {
+        return true;
+      }
+      matchingPersistedIds.forEach((id) => duplicateRootNodeIds.add(id));
+      droppedPendingIncomingIds.add(node.id);
+      return false;
+    });
+    const incomingNodesByKey = new Map();
+    nodes.forEach((node) => {
+      if (!node || isPendingNode(node)) {
+        return;
+      }
+      const dedupeKey = `${node.type || ''}::${normalizeNodeContent(node.content)}`;
+      if (!incomingNodesByKey.has(dedupeKey)) {
+        incomingNodesByKey.set(dedupeKey, []);
+      }
+      incomingNodesByKey.get(dedupeKey).push(node.id);
+    });
 
     pendingOptimisticRoots.forEach((node) => {
+      const dedupeKey = `${node.type || ''}::${normalizeNodeContent(node.content)}`;
+      const incomingMatchIds = incomingNodesByKey.get(dedupeKey) || [];
+      if (incomingMatchIds.length > 0) {
+        incomingMatchIds.forEach((id) => duplicateRootNodeIds.add(id));
+        return;
+      }
       if (!incomingNodeIds.has(node.id)) {
         nodes.push(node);
       }
     });
 
-    const edges = Array.isArray(graph.edges) ? [...graph.edges] : [];
+    const edges = Array.isArray(graph.edges)
+      ? graph.edges.filter((edge) => (
+        !duplicateRootNodeIds.has(edge.to)
+        && !duplicateRootNodeIds.has(edge.from)
+        && !droppedPendingIncomingIds.has(edge.to)
+        && !droppedPendingIncomingIds.has(edge.from)
+      ))
+      : [];
 
     return {
       ...graph,
