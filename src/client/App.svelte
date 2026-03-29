@@ -19,6 +19,7 @@
       await selectGraph(list[0].id);
     }
   });
+
 </script>
 
 <main class="app-shell">

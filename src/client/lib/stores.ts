@@ -1,6 +1,11 @@
 import { derived, writable } from 'svelte/store';
 
-import type { GraphSummary, GraphWithHistory } from './api';
+import type {
+  ActionExecutionRequest,
+  ActionExecutionResponse,
+  GraphSummary,
+  GraphWithHistory,
+} from './api';
 import { apiClient } from './api';
 import { pollUntil } from './polling';
 
@@ -90,4 +95,28 @@ export async function refreshGraphAfterAction(params: {
 
   graphById.update((existing) => ({ ...existing, [params.graphId]: graph }));
   selectedGraphId.set(params.graphId);
+}
+
+export async function executeActionAndRefresh(
+  payload: ActionExecutionRequest,
+): Promise<ActionExecutionResponse> {
+  asyncState.update((s) => ({ ...s, isLoading: true, error: '', toast: '' }));
+  try {
+    const response = await apiClient.executeAction(payload);
+    await refreshGraphAfterAction({
+      graphId: response.graphId,
+      autoExecutions: response.autoExecutions,
+    });
+    await refreshGraphSummaries();
+    asyncState.update((s) => ({
+      ...s,
+      isLoading: false,
+      toast: `Executed '${response.action}'`,
+    }));
+    return response;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Failed to execute action';
+    asyncState.update((s) => ({ ...s, isLoading: false, error: message }));
+    throw error;
+  }
 }
