@@ -310,6 +310,38 @@
     };
   }
 
+  function updateGraphSummary(graph) {
+    const nodeCount = Array.isArray(graph?.nodes) ? graph.nodes.length : 0;
+    const edgeCount = Array.isArray(graph?.edges) ? graph.edges.length : 0;
+    graphSummary.textContent = `Graph: ${graph?.id || graphId} · Nodes: ${nodeCount} · Edges: ${edgeCount} · Selected: ${selectedNodeId || 'none'}`;
+  }
+
+  function applyGraphState(graph) {
+    currentGraphSnapshot = graph;
+    graphId = graph.id || graphId;
+    graphName = graph.name || graphId;
+    graphBookmarked = Boolean(graph.bookmarked);
+    graphHistory = graph.history || { canUndo: false, canRedo: false, undoDepth: 0, redoDepth: 0 };
+    selectedNodeId = graph.selectedNodeId || graph.rootNodeId || selectedNodeId;
+    graphNodeCache = Array.isArray(graph.nodes) ? graph.nodes : [];
+    graphEdgeCache = Array.isArray(graph.edges) ? graph.edges : [];
+    recomputeGraphSearchMatches();
+    updateMergeSummary();
+    refreshActionPanelForMode();
+    graphNameInput.value = graphName;
+    bookmarkGraphButton.textContent = graphBookmarked ? 'Unbookmark' : 'Bookmark';
+    undoGraphButton.disabled = !graphHistory.canUndo;
+    redoGraphButton.disabled = !graphHistory.canRedo;
+    zoomLabel.textContent = `${Math.round(graphZoom * 100)}%`;
+    updateGraphSummary(graph);
+  }
+
+  function applyGraphStateWithoutRender(graph, options = {}) {
+    const normalizedGraph = normalizeHydratedGraph(graph, options);
+    applyGraphState(normalizedGraph);
+    return normalizedGraph;
+  }
+
   function getPendingOptimisticRootNodes() {
     return Array.isArray(graphNodeCache)
       ? graphNodeCache.filter((node) => (
@@ -412,6 +444,207 @@
       nodes: [...(Array.isArray(baseGraph.nodes) ? baseGraph.nodes : []), optimisticNode],
       edges: Array.isArray(baseGraph.edges) ? [...baseGraph.edges] : [],
     });
+  }
+
+  function renderGraphNodeIntoElement(element, node, graph, position) {
+    if (!element || !node) {
+      return;
+    }
+
+    const searchMatchSet = new Set(graphSearchMatches);
+    const activeSearchNodeId = graphSearchMatches[graphSearchCursor] || '';
+    const inheritedFramingByNode = buildInheritedFramingIndex(graph);
+    const framing = inheritedFramingByNode.get(node.id);
+    const isPending = isPendingNode(node);
+    const isActive = node.id === selectedNodeId;
+    const isMultiSelected = selectedNodeIdsForMerge.has(node.id);
+    const isSearchMatch = searchMatchSet.has(node.id);
+    const isSearchActive = node.id === activeSearchNodeId;
+    const isSearchDim = Boolean(graphSearchQuery) && !isSearchMatch;
+    const isExpanded = expandedNodeIds.has(node.id);
+
+    element.className = `graph-node${isPending ? ' pending' : ''}${isActive ? ' active' : ''}${isMultiSelected ? ' multi-selected' : ''}${isSearchMatch ? ' search-match' : ''}${isSearchActive ? ' search-active' : ''}${isSearchDim ? ' search-dim' : ''}${isExpanded ? ' expanded' : ''}`;
+    element.title = node.content;
+    element.style.left = `${position.x}px`;
+    element.style.top = `${position.y}px`;
+    element.style.transform = `scale(${graphZoom})`;
+    element.style.transformOrigin = 'top left';
+    element.innerHTML = '';
+
+    const type = document.createElement('div');
+    type.className = 'graph-node-type';
+    type.textContent = node.type;
+
+    const content = document.createElement('div');
+    content.className = 'graph-node-content';
+    content.textContent = node.content;
+
+    const badges = document.createElement('div');
+    badges.className = 'graph-node-badges';
+    if (framing) {
+      const badgeSpecs = [
+        { key: 'context', label: 'Ctx', values: framing.context },
+        { key: 'constraint', label: 'Con', values: framing.constraint },
+        { key: 'assumption', label: 'Asm', values: framing.assumption },
+        { key: 'criterion', label: 'Cri', values: framing.criterion },
+      ];
+
+      badgeSpecs.forEach((spec) => {
+        if (!spec.values.length) {
+          return;
+        }
+        const badge = document.createElement('span');
+        badge.className = `graph-badge ${spec.key}`;
+        badge.textContent = `${spec.label} ${spec.values.length}`;
+        badge.title = spec.values.join('\n');
+        badges.appendChild(badge);
+      });
+    }
+
+    const actionsRow = document.createElement('div');
+    actionsRow.className = 'graph-node-actions';
+
+    const openActions = document.createElement('button');
+    openActions.type = 'button';
+    openActions.className = 'mini-button';
+    openActions.textContent = 'Actions';
+    openActions.disabled = isPending;
+    openActions.addEventListener('click', async (event) => {
+      event.stopPropagation();
+      if (isPending) {
+        return;
+      }
+      await handleNodeSelection(node, false);
+    });
+
+    const multiSelect = document.createElement('button');
+    multiSelect.type = 'button';
+    multiSelect.className = 'mini-button';
+    multiSelect.textContent = isMultiSelected ? 'Unselect' : 'Select';
+    multiSelect.disabled = isPending;
+    multiSelect.addEventListener('click', (event) => {
+      event.stopPropagation();
+      if (isPending) {
+        return;
+      }
+      toggleNodeMultiSelection(node.id);
+      renderGraph(graph);
+    });
+
+    const expandToggle = document.createElement('button');
+    expandToggle.type = 'button';
+    expandToggle.className = 'mini-button';
+    expandToggle.textContent = expandedNodeIds.has(node.id) ? '⤡' : '⤢';
+    expandToggle.title = expandedNodeIds.has(node.id) ? 'Collapse' : 'Expand';
+    expandToggle.addEventListener('click', (event) => {
+      event.stopPropagation();
+      if (expandedNodeIds.has(node.id)) {
+        expandedNodeIds.delete(node.id);
+      } else {
+        expandedNodeIds.add(node.id);
+      }
+      renderGraph(graph);
+    });
+
+    actionsRow.appendChild(expandToggle);
+    actionsRow.appendChild(openActions);
+    actionsRow.appendChild(multiSelect);
+
+    element.appendChild(type);
+    element.appendChild(content);
+    if (badges.children.length > 0) {
+      element.appendChild(badges);
+    }
+    element.appendChild(actionsRow);
+
+    element.onclick = async () => {
+      if (Date.now() < suppressNodeClickUntil || isPending) {
+        return;
+      }
+      await handleNodeSelection(node, true);
+    };
+
+    element.onpointerdown = (event) => {
+      beginNodeDrag(event, node);
+    };
+  }
+
+  function renderDraftRootNodeInPlace(element, node, position) {
+    const baseGraph = buildHydrationBaseGraph();
+    const nextGraph = {
+      ...baseGraph,
+      id: graphId,
+      name: graphName,
+      bookmarked: graphBookmarked,
+      history: graphHistory,
+      selectedNodeId: node.id,
+      nodes: [...(Array.isArray(baseGraph.nodes) ? baseGraph.nodes : []), node],
+      edges: Array.isArray(baseGraph.edges) ? [...baseGraph.edges] : [],
+    };
+    const appliedGraph = applyGraphStateWithoutRender(nextGraph);
+    renderGraphNodeIntoElement(element, node, appliedGraph, position);
+  }
+
+  function finalizeDraftRootNodeInPlace(element, nodeId, options = {}) {
+    if (!nodeId) {
+      return null;
+    }
+
+    const baseGraph = buildHydrationBaseGraph();
+    const nextNodeId = typeof options.nextNodeId === 'string' && options.nextNodeId.trim()
+      ? options.nextNodeId.trim()
+      : nodeId;
+    const nodes = Array.isArray(baseGraph.nodes)
+      ? baseGraph.nodes.reduce((acc, node) => {
+        if (!node) {
+          acc.push(node);
+          return acc;
+        }
+        if (node.id === nextNodeId && nextNodeId !== nodeId) {
+          return acc;
+        }
+        if (node.id !== nodeId) {
+          acc.push(node);
+          return acc;
+        }
+        acc.push({
+          ...node,
+          id: nextNodeId,
+          pending: false,
+        });
+        return acc;
+      }, [])
+      : [];
+    const edges = Array.isArray(baseGraph.edges)
+      ? baseGraph.edges.map((edge) => ({
+        ...edge,
+        from: edge.from === nodeId ? nextNodeId : edge.from,
+        to: edge.to === nodeId ? nextNodeId : edge.to,
+      }))
+      : [];
+    const nextSelectedNodeId = typeof options.selectedNodeId === 'string' && options.selectedNodeId.trim()
+      ? options.selectedNodeId.trim()
+      : nextNodeId;
+    const nextGraph = {
+      ...baseGraph,
+      id: graphId,
+      name: graphName,
+      bookmarked: graphBookmarked,
+      history: options.history || graphHistory,
+      selectedNodeId: nextSelectedNodeId,
+      nodes,
+      edges,
+    };
+    const appliedGraph = applyGraphStateWithoutRender(nextGraph, { preservePendingOptimisticRoots: false });
+    const finalizedNode = Array.isArray(appliedGraph.nodes)
+      ? appliedGraph.nodes.find((node) => node && node.id === nextNodeId)
+      : null;
+    if (element && finalizedNode) {
+      const currentLeft = parseInt(element.style.left, 10) || 0;
+      const currentTop = parseInt(element.style.top, 10) || 0;
+      renderGraphNodeIntoElement(element, finalizedNode, appliedGraph, { x: currentLeft, y: currentTop });
+    }
+    return finalizedNode;
   }
 
   function removeOptimisticRootNode(nodeId, fallbackSelectedNodeId) {
@@ -568,8 +801,9 @@
           textarea.focus();
           return;
         }
-        cleanup();
-        resolve({ text, type: typeSelect.value, parentNodeId });
+        activeDraftNode = null;
+        draftResolve = null;
+        resolve({ text, type: typeSelect.value, parentNodeId, element: el });
       };
 
       const cancel = () => {
@@ -628,6 +862,7 @@
     if (!result) return;
 
     const actionName = result.type === 'request' ? 'make_request' : 'ask_question';
+    const draftNodeElement = result.element;
     const payload = {
       action: actionName,
       userInput: result.text,
@@ -654,12 +889,18 @@
       optimisticRootRemoved = true;
     };
     payload.clientNodeIds = [optimisticRootNodeId];
-    renderOptimisticRootNode(
-      optimisticRootNodeId,
-      result.type,
-      result.text,
-      payload.position,
-      { pending: true, focus: false },
+    renderDraftRootNodeInPlace(
+      draftNodeElement,
+      {
+        id: optimisticRootNodeId,
+        type: result.type,
+        content: result.text,
+        actor: 'user',
+        createdAt: new Date().toISOString(),
+        pending: true,
+        ...(payload.position ? { position: { x: Math.round(payload.position.x), y: Math.round(payload.position.y) } } : {}),
+      },
+      { x: canvasX, y: canvasY },
     );
 
     let hasPendingAutoActions = false;
@@ -678,7 +919,7 @@
       if (data.selectedNodeId) selectedNodeId = data.selectedNodeId;
       if (Array.isArray(data.createdNodeIds) && data.createdNodeIds.length > 0) {
         createdRootNodeId = data.createdNodeIds[0];
-        finalizeOptimisticRootNode(optimisticRootNodeId, {
+        finalizeDraftRootNodeInPlace(draftNodeElement, optimisticRootNodeId, {
           nextNodeId: createdRootNodeId,
           selectedNodeId: data.selectedNodeId || createdRootNodeId,
           history: data.history,
@@ -915,30 +1156,11 @@
 
   function hydrateGraphState(graph, options = {}) {
     const normalizedGraph = normalizeHydratedGraph(graph, options);
-    currentGraphSnapshot = normalizedGraph;
-    graphId = normalizedGraph.id || graphId;
-    graphName = normalizedGraph.name || graphId;
-    graphBookmarked = Boolean(normalizedGraph.bookmarked);
-    graphHistory = normalizedGraph.history || { canUndo: false, canRedo: false, undoDepth: 0, redoDepth: 0 };
-    selectedNodeId = normalizedGraph.selectedNodeId || normalizedGraph.rootNodeId || selectedNodeId;
-    graphNodeCache = Array.isArray(normalizedGraph.nodes) ? normalizedGraph.nodes : [];
-    graphEdgeCache = Array.isArray(normalizedGraph.edges) ? normalizedGraph.edges : [];
-    recomputeGraphSearchMatches();
-    updateMergeSummary();
-    refreshActionPanelForMode();
-    graphNameInput.value = graphName;
-    bookmarkGraphButton.textContent = graphBookmarked ? 'Unbookmark' : 'Bookmark';
-    undoGraphButton.disabled = !graphHistory.canUndo;
-    redoGraphButton.disabled = !graphHistory.canRedo;
-    zoomLabel.textContent = `${Math.round(graphZoom * 100)}%`;
+    applyGraphState(normalizedGraph);
     renderGraph(normalizedGraph);
   }
 
   function renderGraph(graph) {
-    const nodeCount = Array.isArray(graph.nodes) ? graph.nodes.length : 0;
-    const edgeCount = Array.isArray(graph.edges) ? graph.edges.length : 0;
-    graphSummary.textContent = `Graph: ${graph.id} · Nodes: ${nodeCount} · Edges: ${edgeCount} · Selected: ${selectedNodeId || 'none'}`;
-
     graphNodes.innerHTML = '';
     graphEdges.innerHTML = '';
 

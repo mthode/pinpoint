@@ -631,4 +631,197 @@ describe('background root creation', () => {
 
     dom.window.close();
   });
+
+  it('keeps the exact draft element in place while execute is pending and after success', async () => {
+    const html = fs.readFileSync(
+      path.join(process.cwd(), 'src', 'public', 'index.html'),
+      'utf8',
+    );
+    const script = fs.readFileSync(
+      path.join(process.cwd(), 'src', 'public', 'app.js'),
+      'utf8',
+    );
+
+    const dom = new JSDOM(html, {
+      url: 'http://localhost/',
+      runScripts: 'outside-only',
+    });
+
+    const { window } = dom;
+    const { document } = window;
+    const graphCanvas = document.getElementById('graph-canvas');
+
+    Object.defineProperty(graphCanvas, 'clientWidth', {
+      configurable: true,
+      value: 1200,
+    });
+    Object.defineProperty(graphCanvas, 'clientHeight', {
+      configurable: true,
+      value: 800,
+    });
+    Object.defineProperty(graphCanvas, 'scrollLeft', {
+      configurable: true,
+      writable: true,
+      value: 0,
+    });
+    Object.defineProperty(graphCanvas, 'scrollTop', {
+      configurable: true,
+      writable: true,
+      value: 0,
+    });
+    graphCanvas.getBoundingClientRect = () => ({
+      left: 0,
+      top: 0,
+      right: 1200,
+      bottom: 800,
+      width: 1200,
+      height: 800,
+    });
+    graphCanvas.scrollTo = jest.fn(({ left = 0, top = 0 } = {}) => {
+      graphCanvas.scrollLeft = left;
+      graphCanvas.scrollTop = top;
+    });
+
+    window.prompt = jest.fn(() => null);
+    window.URL.createObjectURL = jest.fn(() => 'blob:mock');
+    window.URL.revokeObjectURL = jest.fn();
+
+    const graphState = {
+      id: 'default',
+      name: 'default',
+      bookmarked: false,
+      createdAt: '2026-03-28T00:00:00.000Z',
+      updatedAt: '2026-03-28T00:00:00.000Z',
+      history: { canUndo: false, canRedo: false, undoDepth: 0, redoDepth: 0 },
+      rootNodeId: 'root-1',
+      selectedNodeId: 'root-1',
+      nodes: [
+        {
+          id: 'root-1',
+          type: 'root',
+          content: 'Brainstorm root',
+        },
+      ],
+      edges: [],
+    };
+    const executeResponse = createDeferred();
+    const persistedNodeId = 'bubble-persisted-in-place';
+
+    window.fetch = jest.fn(async (resource, init = {}) => {
+      const url = typeof resource === 'string' ? resource : resource.url;
+
+      if (url === '/api/brainstorm/graphs/default') {
+        return jsonResponse(graphState);
+      }
+
+      if (url === '/api/brainstorm/graphs') {
+        return jsonResponse({
+          graphs: [{
+            id: graphState.id,
+            name: graphState.name,
+            bookmarked: graphState.bookmarked,
+            createdAt: graphState.createdAt,
+            updatedAt: graphState.updatedAt,
+            nodeCount: graphState.nodes.length,
+          }],
+        });
+      }
+
+      if (url.startsWith('/api/models?provider=')) {
+        return jsonResponse({
+          provider: 'ollama-network',
+          models: ['mock-model'],
+        });
+      }
+
+      if (url === '/api/brainstorm/config') {
+        return jsonResponse({
+          agents: [{ name: 'facilitator' }],
+          actionCount: 1,
+          triggers: ['question'],
+          outputs: ['question'],
+          autoActions: [],
+        });
+      }
+
+      if (url === '/api/brainstorm/actions?trigger=question') {
+        return jsonResponse({
+          trigger: 'question',
+          actions: [{
+            name: 'clarify',
+            actor: 'facilitator',
+            output: 'clarification',
+          }],
+        });
+      }
+
+      if (url === '/api/brainstorm/execute') {
+        const body = JSON.parse(init.body);
+        await executeResponse.promise;
+        graphState.nodes = [
+          ...graphState.nodes,
+          {
+            id: persistedNodeId,
+            type: 'question',
+            content: body.userInput,
+            position: body.position,
+          },
+        ];
+        graphState.selectedNodeId = persistedNodeId;
+        graphState.updatedAt = '2026-03-28T00:00:01.000Z';
+        return jsonResponse({
+          graphId: graphState.id,
+          selectedNodeId: persistedNodeId,
+          createdNodeIds: [persistedNodeId],
+          pendingAutoActions: false,
+          history: graphState.history,
+        });
+      }
+
+      throw new Error(`Unhandled fetch: ${url}`);
+    });
+
+    window.eval(script);
+    await flushAsyncWork();
+
+    document.getElementById('auto-actions-toggle').checked = false;
+
+    graphCanvas.dispatchEvent(new window.MouseEvent('dblclick', {
+      bubbles: true,
+      clientX: 420,
+      clientY: 260,
+    }));
+    await flushAsyncWork();
+
+    const draftNode = document.querySelector('.draft');
+    const textarea = draftNode.querySelector('textarea');
+    textarea.value = 'In-place draft question';
+    textarea.dispatchEvent(new window.KeyboardEvent('keydown', {
+      bubbles: true,
+      key: 'Enter',
+    }));
+    await flushAsyncWork();
+
+    const pendingNodes = Array.from(document.querySelectorAll('.graph-node'))
+      .filter((node) => node.textContent.includes('In-place draft question'));
+    expect(pendingNodes).toHaveLength(1);
+    expect(pendingNodes[0]).toBe(draftNode);
+    expect(pendingNodes[0].className).toContain('pending');
+    expect(pendingNodes[0].style.left).toBe('420px');
+    expect(pendingNodes[0].style.top).toBe('260px');
+
+    executeResponse.resolve();
+    await flushAsyncWork();
+
+    const finalNodes = Array.from(document.querySelectorAll('.graph-node'))
+      .filter((node) => node.textContent.includes('In-place draft question'));
+    expect(finalNodes).toHaveLength(1);
+    expect(finalNodes[0]).toBe(draftNode);
+    expect(finalNodes[0].className).not.toContain('pending');
+    expect(finalNodes[0].style.left).toBe('420px');
+    expect(finalNodes[0].style.top).toBe('260px');
+    expect(finalNodes[0].textContent).toContain('Select');
+
+    dom.window.close();
+  });
 });
