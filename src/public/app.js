@@ -736,6 +736,7 @@
     const defaultType = options.defaultType || types[0];
     const hint = options.hint || 'Enter to confirm · Escape to cancel';
     const parentNodeId = options.parentNodeId || null;
+    const preserveElementOnConfirm = Boolean(options.preserveElementOnConfirm);
 
     const el = document.createElement('div');
     el.className = 'graph-node draft';
@@ -801,9 +802,17 @@
           textarea.focus();
           return;
         }
-        activeDraftNode = null;
-        draftResolve = null;
-        resolve({ text, type: typeSelect.value, parentNodeId, element: el });
+        if (document.activeElement === textarea) {
+          textarea.blur();
+        }
+        if (preserveElementOnConfirm) {
+          activeDraftNode = null;
+          draftResolve = null;
+          resolve({ text, type: typeSelect.value, parentNodeId, element: el });
+          return;
+        }
+        cleanup();
+        resolve({ text, type: typeSelect.value, parentNodeId });
       };
 
       const cancel = () => {
@@ -817,9 +826,18 @@
         el.remove();
       };
 
-      confirmBtn.addEventListener('click', confirm);
-      cancelBtn.addEventListener('click', cancel);
+      confirmBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        confirm();
+      });
+      cancelBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        cancel();
+      });
       textarea.addEventListener('keydown', (e) => {
+        e.stopPropagation();
         if (e.key === 'Enter' && !e.shiftKey) {
           e.preventDefault();
           confirm();
@@ -844,6 +862,9 @@
   }
 
   async function handleCanvasDblClick(event) {
+    if (executionInFlight) {
+      return;
+    }
     const target = event.target;
     if (target.closest && (target.closest('.graph-node') || target.closest('.draft'))) {
       return;
@@ -857,6 +878,7 @@
       types: ['question', 'request', 'context', 'constraint', 'assumption', 'criterion'],
       defaultType: 'question',
       placeholder: 'What would you like to explore?',
+      preserveElementOnConfirm: true,
     });
 
     if (!result) return;
@@ -906,6 +928,7 @@
     let hasPendingAutoActions = false;
     let createdRootNodeId = '';
     let shouldReloadGraph = false;
+    executionInFlight = true;
     try {
       const res = await fetch('/api/brainstorm/execute', {
         method: 'POST',
@@ -939,6 +962,7 @@
       } else {
         await loadGraphList();
       }
+      executionInFlight = false;
     }
     if (hasPendingAutoActions) {
       scheduleAutoActionReload();
@@ -946,6 +970,10 @@
   }
 
   async function executeAction(action) {
+    if (executionInFlight) {
+      showError('Please wait for the current action to finish.');
+      return;
+    }
     if (isMergeCapableAction(action) && selectedNodeIdsForMerge.size < 2) {
       showError(`Action '${action.name}' requires at least 2 selected nodes.`);
       return;
@@ -998,14 +1026,15 @@
 
     let hasPendingAutoActions = false;
     let createdNodeId = '';
-    const res = await fetch('/api/brainstorm/execute', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    });
-    const data = await res.json();
-
+    executionInFlight = true;
     try {
+      const res = await fetch('/api/brainstorm/execute', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+
       if (!res.ok) {
         throw new Error(data.error || 'Action execution failed');
       }
@@ -1023,6 +1052,7 @@
       hasPendingAutoActions = Boolean(data.pendingAutoActions);
     } finally {
       await loadGraph(createdNodeId);
+      executionInFlight = false;
     }
     if (hasPendingAutoActions) {
       scheduleAutoActionReload();
@@ -1030,6 +1060,7 @@
   }
 
   let autoActionReloadTimer = null;
+  let executionInFlight = false;
   function scheduleAutoActionReload() {
     if (autoActionReloadTimer) clearTimeout(autoActionReloadTimer);
     autoActionReloadTimer = setTimeout(async () => {
