@@ -2,6 +2,7 @@ import { derived, writable } from 'svelte/store';
 
 import type { GraphSummary, GraphWithHistory } from './api';
 import { apiClient } from './api';
+import { pollUntil } from './polling';
 
 export const graphs = writable<GraphSummary[]>([]);
 export const graphById = writable<Record<string, GraphWithHistory>>({});
@@ -55,4 +56,38 @@ export async function selectGraph(graphId: string): Promise<void> {
     const message = error instanceof Error ? error.message : 'Failed to load graph';
     asyncState.update((s) => ({ ...s, isLoading: false, error: message }));
   }
+}
+
+function expectedNodeIdsFromAutoExecutions(
+  autoExecutions: Array<{ createdNodeIds: string[] }>,
+): Set<string> {
+  return new Set(autoExecutions.flatMap((execution) => execution.createdNodeIds));
+}
+
+export async function refreshGraphAfterAction(params: {
+  graphId: string;
+  autoExecutions: Array<{ createdNodeIds: string[] }>;
+  pollOptions?: { maxAttempts?: number; intervalMs?: number };
+}): Promise<void> {
+  const expectedIds = expectedNodeIdsFromAutoExecutions(params.autoExecutions);
+  const graph = await pollUntil({
+    run: () => apiClient.loadGraph(params.graphId),
+    isDone: (result) => {
+      if (expectedIds.size === 0) {
+        return true;
+      }
+      const nodeIds = new Set(result.nodes.map((n) => n.id));
+      for (const expectedId of expectedIds) {
+        if (!nodeIds.has(expectedId)) {
+          return false;
+        }
+      }
+      return true;
+    },
+    maxAttempts: params.pollOptions?.maxAttempts,
+    intervalMs: params.pollOptions?.intervalMs,
+  });
+
+  graphById.update((existing) => ({ ...existing, [params.graphId]: graph }));
+  selectedGraphId.set(params.graphId);
 }
