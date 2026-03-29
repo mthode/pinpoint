@@ -1,50 +1,16 @@
 import fs from 'fs';
 import path from 'path';
-
-export interface GraphNode {
-  id: string;
-  type: string;
-  content: string;
-  actor: string;
-  createdAt: string;
-  position?: {
-    x: number;
-    y: number;
-  };
-}
-
-export interface GraphEdge {
-  from: string;
-  to: string;
-}
-
-export interface BrainstormGraph {
-  id: string;
-  name: string;
-  bookmarked: boolean;
-  createdAt: string;
-  updatedAt: string;
-  rootNodeId: string;
-  selectedNodeId: string;
-  nodes: GraphNode[];
-  edges: GraphEdge[];
-}
-
-export interface BubbleToInsert {
-  type: string;
-  content: string;
-}
+import {
+  BrainstormGraph,
+  BubbleToInsert,
+  GraphEdge,
+  GraphHistoryStatus,
+  GraphNode,
+} from '../shared/graph';
 
 interface GraphHistory {
   past: BrainstormGraph[];
   future: BrainstormGraph[];
-}
-
-export interface GraphHistoryStatus {
-  canUndo: boolean;
-  canRedo: boolean;
-  undoDepth: number;
-  redoDepth: number;
 }
 
 const graphs = new Map<string, BrainstormGraph>();

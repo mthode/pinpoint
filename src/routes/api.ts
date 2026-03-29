@@ -25,6 +25,7 @@ import {
   updateGraphMetadata,
   updateNodePosition,
 } from '../services/brainstorm-graph-store';
+import { GraphEdge, GraphNode } from '../shared/graph';
 
 const router = Router();
 
@@ -38,16 +39,8 @@ function getProvider(name: string): AIProvider | undefined {
   return providers.find((p) => p.name === name);
 }
 
-interface GraphLikeNode {
-  id: string;
-  type: string;
-  content: string;
-}
-
-interface GraphLikeEdge {
-  from: string;
-  to: string;
-}
+type GraphLikeNode = Pick<GraphNode, 'id' | 'type' | 'content'>;
+type GraphLikeEdge = GraphEdge;
 
 function collectAncestorChain(nodes: GraphLikeNode[], edges: GraphLikeEdge[], nodeId: string): GraphLikeNode[] {
   const byId = new Map(nodes.map((node) => [node.id, node]));
