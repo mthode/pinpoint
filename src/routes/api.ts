@@ -3,6 +3,7 @@ import { AIProvider, AIMessage } from '../services/ai-provider';
 import { OllamaProvider } from '../services/ollama-provider';
 import { OllamaNetworkProvider } from '../services/ollama-network-provider';
 import { CopilotCliProvider } from '../services/copilot-cli-provider';
+import { DummyProvider, DUMMY_MODEL_NAME, DUMMY_PROVIDER_NAME } from '../services/dummy-provider';
 import {
   getActionByName,
   getActionsForTrigger,
@@ -30,15 +31,57 @@ import {
 import { GraphEdge, GraphNode } from '../shared/graph';
 
 const router = Router();
+const DEFAULT_PROVIDER_NAME = 'ollama-network';
+const DEFAULT_MODEL_NAME = 'gemma3:1b';
 
 const providers: AIProvider[] = [
   new OllamaProvider(),
   new OllamaNetworkProvider(),
   new CopilotCliProvider(),
+  new DummyProvider(),
 ];
 
 function getProvider(name: string): AIProvider | undefined {
   return providers.find((p) => p.name === name);
+}
+
+async function resolveDefaultModelSelection(): Promise<{
+  provider: string;
+  model: string;
+  fallback: boolean;
+}> {
+  const defaultProvider = getProvider(DEFAULT_PROVIDER_NAME);
+  if (!defaultProvider) {
+    return {
+      provider: DUMMY_PROVIDER_NAME,
+      model: DUMMY_MODEL_NAME,
+      fallback: true,
+    };
+  }
+
+  try {
+    const [available, models] = await Promise.all([
+      defaultProvider.isAvailable(),
+      defaultProvider.listModels(),
+    ]);
+
+    if (available && models.includes(DEFAULT_MODEL_NAME)) {
+      return {
+        provider: DEFAULT_PROVIDER_NAME,
+        model: DEFAULT_MODEL_NAME,
+        fallback: false,
+      };
+    }
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.warn(`Failed to resolve default model '${DEFAULT_PROVIDER_NAME}/${DEFAULT_MODEL_NAME}': ${message}`);
+  }
+
+  return {
+    provider: DUMMY_PROVIDER_NAME,
+    model: DUMMY_MODEL_NAME,
+    fallback: true,
+  };
 }
 
 type GraphLikeNode = Pick<GraphNode, 'id' | 'type' | 'content'>;
@@ -111,6 +154,10 @@ router.get('/providers', async (_req: Request, res: Response) => {
     }))
   );
   res.json(results);
+});
+
+router.get('/default-model', async (_req: Request, res: Response) => {
+  res.json(await resolveDefaultModelSelection());
 });
 
 router.get('/models', async (req: Request, res: Response) => {
