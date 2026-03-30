@@ -15,12 +15,12 @@ const limiter = rateLimit({
 
 app.use(limiter);
 app.use(express.json());
-app.use(express.static(path.join(__dirname, '..', 'src', 'public')));
+app.use(express.static(path.join(__dirname, 'client')));
 
 app.use('/api', apiRouter);
 
 app.get('*', (_req, res) => {
-  res.sendFile(path.join(__dirname, '..', 'src', 'public', 'index.html'));
+  res.sendFile(path.join(__dirname, 'client', 'index.html'));
 });
 
 if (require.main === module) {
