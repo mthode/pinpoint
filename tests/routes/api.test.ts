@@ -340,6 +340,7 @@ describe('Brainstorm graph endpoints', () => {
     expect(createRes.body).toHaveProperty('rootNodeId');
     expect(createRes.body).toHaveProperty('history');
     expect(Array.isArray(createRes.body.nodes)).toBe(true);
+    expect(createRes.body.nodes.length).toBe(0);
 
     const getRes = await request(app).get('/api/brainstorm/graphs/test-graph');
     expect(getRes.status).toBe(200);
@@ -436,11 +437,20 @@ describe('Brainstorm graph endpoints', () => {
   });
 
   it('updates node position coordinates', async () => {
-    const createRes = await request(app)
+    await request(app)
       .post('/api/brainstorm/graphs')
       .send({ graphId: 'position-graph' });
 
-    const nodeId = createRes.body.rootNodeId as string;
+    const nodeRes = await request(app)
+      .post('/api/brainstorm/graphs/position-graph/nodes')
+      .send({
+        type: 'question',
+        content: 'How do we ship this?',
+        position: { x: 40, y: 80 },
+      });
+
+    expect(nodeRes.status).toBe(201);
+    const nodeId = nodeRes.body.selectedNodeId as string;
     const patchRes = await request(app)
       .patch(`/api/brainstorm/graphs/position-graph/nodes/${encodeURIComponent(nodeId)}/position`)
       .send({ x: 120, y: 240 });
@@ -450,6 +460,95 @@ describe('Brainstorm graph endpoints', () => {
     expect(updated).toBeTruthy();
     expect(updated.position).toEqual({ x: 120, y: 240 });
     expect(patchRes.body.history).toHaveProperty('canUndo', true);
+  });
+
+  it('creates a parentless node as a root node', async () => {
+    await request(app)
+      .post('/api/brainstorm/graphs')
+      .send({ graphId: 'root-create' });
+
+    const createNodeRes = await request(app)
+      .post('/api/brainstorm/graphs/root-create/nodes')
+      .send({
+        type: 'question',
+        content: 'What should we build first?',
+        position: { x: 320, y: 180 },
+      });
+
+    expect(createNodeRes.status).toBe(201);
+    expect(createNodeRes.body.nodes.length).toBe(1);
+    expect(createNodeRes.body.edges.length).toBe(0);
+    expect(createNodeRes.body.rootNodeId).toBe(createNodeRes.body.selectedNodeId);
+    const createdNode = createNodeRes.body.nodes[0];
+    expect(createdNode).toMatchObject({ type: 'question', content: 'What should we build first?' });
+    expect(createdNode.position).toEqual({ x: 320, y: 180 });
+  });
+
+  it('deletes a node and its descendant subtree', async () => {
+    await request(app)
+      .post('/api/brainstorm/graphs')
+      .send({ graphId: 'delete-subtree' });
+
+    const rootRes = await request(app)
+      .post('/api/brainstorm/graphs/delete-subtree/nodes')
+      .send({
+        type: 'question',
+        content: 'Root node',
+      });
+
+    const rootId = rootRes.body.selectedNodeId as string;
+
+    const childRes = await request(app)
+      .post('/api/brainstorm/graphs/delete-subtree/nodes')
+      .send({
+        type: 'assumption',
+        content: 'Child node',
+        parentNodeId: rootId,
+      });
+
+    const childId = childRes.body.selectedNodeId as string;
+
+    await request(app)
+      .post('/api/brainstorm/graphs/delete-subtree/nodes')
+      .send({
+        type: 'context',
+        content: 'Grandchild node',
+        parentNodeId: childId,
+      });
+
+    const siblingRootRes = await request(app)
+      .post('/api/brainstorm/graphs/delete-subtree/nodes')
+      .send({
+        type: 'question',
+        content: 'Sibling root',
+      });
+
+    const siblingRootId = siblingRootRes.body.selectedNodeId as string;
+
+    const deleteRes = await request(app)
+      .delete(`/api/brainstorm/graphs/delete-subtree/nodes/${encodeURIComponent(childId)}`)
+      .send({});
+
+    expect(deleteRes.status).toBe(200);
+    expect(deleteRes.body.nodes.map((n: { id: string }) => n.id)).toEqual(
+      expect.arrayContaining([rootId, siblingRootId]),
+    );
+    expect(deleteRes.body.nodes.length).toBe(2);
+    expect(deleteRes.body.edges.length).toBe(0);
+    expect(deleteRes.body.history).toHaveProperty('canUndo', true);
+  });
+
+  it('returns 404 when deleting an unknown node', async () => {
+    await request(app)
+      .post('/api/brainstorm/graphs')
+      .send({ graphId: 'delete-missing' });
+
+    const res = await request(app)
+      .delete('/api/brainstorm/graphs/delete-missing/nodes/does-not-exist')
+      .send({});
+
+    expect(res.status).toBe(404);
+    expect(res.body).toHaveProperty('error');
   });
 
   it('returns 400 when coordinates are missing', async () => {

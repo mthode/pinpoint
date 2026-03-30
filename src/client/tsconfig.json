@@ -1,0 +1,16 @@
+{
+  "extends": "@tsconfig/svelte/tsconfig.json",
+  "compilerOptions": {
+    "target": "ESNext",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "strict": true,
+    "verbatimModuleSyntax": true,
+    "outDir": "../../dist/client"
+  },
+  "include": [
+    "./**/*.ts",
+    "./**/*.svelte"
+  ],
+  "exclude": ["node_modules"]
+}
