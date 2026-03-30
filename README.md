@@ -1,12 +1,12 @@
 # Pinpoint
 
-A graphical TypeScript chat application hosted by Node.js that uses AI tools via CLI integrations. The initial AI provider is [Ollama](https://ollama.ai), with an extensible architecture for adding more providers later.
+A graphical TypeScript brainstorming application hosted by Node.js with a Svelte client and AI tools via CLI integrations. The initial AI provider is [Ollama](https://ollama.ai), with an extensible architecture for adding more providers later.
 
 ## Features
 
 - 🤖 **AI provider abstraction** — clean interface for plugging in any CLI-based AI tool
 - 🦙 **Ollama integration** — chat with locally-hosted LLMs via the `ollama` CLI
-- 💬 **Graphical web UI** — dark-themed chat interface served by Express
+- 💬 **Svelte web UI** — client-rendered brainstorming interface served by Express
 - 🔌 **REST API** — `/api/providers`, `/api/models`, `/api/chat`
 - 🛡️ **Rate limiting** — built-in request throttling
 
@@ -36,20 +36,28 @@ Then open [http://localhost:3000](http://localhost:3000) in your browser.
 npm run dev
 ```
 
+### Client development mode
+
+```bash
+# Terminal 1: API/server
+npm run dev
+
+# Terminal 2: Svelte client
+npm run dev:client
+```
+
 ## Project Structure
 
 ```
 src/
 ├── server.ts                # Express server entry point
+├── client/                  # Svelte frontend app
 ├── routes/
 │   └── api.ts               # REST API routes
 ├── services/
 │   ├── ai-provider.ts       # AIProvider interface (extend to add new providers)
 │   └── ollama-provider.ts   # Ollama CLI implementation
-└── public/
-    ├── index.html           # Chat UI
-    ├── styles.css           # Styles
-    └── app.js               # Frontend JavaScript
+└── shared/                  # Shared server/client graph types
 tests/
 ├── routes/api.test.ts
 └── services/ollama-provider.test.ts

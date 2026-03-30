@@ -18,6 +18,31 @@ export interface BrainstormConfigSummary {
   autoActions: Record<string, string[]>;
 }
 
+export interface BrainstormAction {
+  name: string;
+  description: string;
+  trigger: string[];
+  actor: string;
+  output: string;
+  prompt_template?: string;
+  branching?: 'pause' | 'linear' | 'fork' | 'fork_multiple' | 'merge';
+  input?: string;
+  output_mode?: 'chain';
+}
+
+export interface ProviderStatus {
+  name: string;
+  available: boolean;
+}
+
+export interface CreateGraphNodeRequest {
+  type: string;
+  content: string;
+  actor?: string;
+  parentNodeId?: string;
+  position?: { x: number; y: number };
+}
+
 export interface ActionExecutionRequest {
   action: string;
   context: Record<string, unknown>;
@@ -81,13 +106,16 @@ export function createApiClient(baseUrl = '/api', fetchImpl: FetchLike = fetch) 
   }
 
   return {
+    loadProviders(): Promise<ProviderStatus[]> {
+      return requestJson('/providers');
+    },
     loadModels(provider = 'ollama'): Promise<{ provider: string; models: string[] }> {
       return requestJson(`/models?provider=${encodeURIComponent(provider)}`);
     },
     loadConfig(): Promise<BrainstormConfigSummary> {
       return requestJson('/brainstorm/config');
     },
-    loadActions(trigger: string): Promise<{ trigger: string; actions: Array<{ name: string }> }> {
+    loadActions(trigger: string): Promise<{ trigger: string; actions: BrainstormAction[] }> {
       return requestJson(`/brainstorm/actions?trigger=${encodeURIComponent(trigger)}`);
     },
     loadGraphs(): Promise<{ graphs: GraphSummary[] }> {
@@ -98,6 +126,51 @@ export function createApiClient(baseUrl = '/api', fetchImpl: FetchLike = fetch) 
     },
     loadGraph(graphId: string): Promise<GraphWithHistory> {
       return requestJson(`/brainstorm/graphs/${encodeURIComponent(graphId)}`);
+    },
+    createNode(graphId: string, payload: CreateGraphNodeRequest): Promise<GraphWithHistory> {
+      return requestJson(
+        `/brainstorm/graphs/${encodeURIComponent(graphId)}/nodes`,
+        withJsonInit('POST', payload),
+      );
+    },
+    deleteNode(graphId: string, nodeId: string): Promise<GraphWithHistory> {
+      return requestJson(
+        `/brainstorm/graphs/${encodeURIComponent(graphId)}/nodes/${encodeURIComponent(nodeId)}`,
+        withJsonInit('DELETE'),
+      );
+    },
+    selectNode(graphId: string, nodeId: string): Promise<GraphWithHistory> {
+      return requestJson(
+        `/brainstorm/graphs/${encodeURIComponent(graphId)}/select`,
+        withJsonInit('POST', { nodeId }),
+      );
+    },
+    updateGraphMetadata(
+      graphId: string,
+      updates: { name?: string; bookmarked?: boolean },
+    ): Promise<GraphWithHistory> {
+      return requestJson(
+        `/brainstorm/graphs/${encodeURIComponent(graphId)}/meta`,
+        withJsonInit('PATCH', updates),
+      );
+    },
+    updateNodePosition(graphId: string, nodeId: string, x: number, y: number): Promise<GraphWithHistory> {
+      return requestJson(
+        `/brainstorm/graphs/${encodeURIComponent(graphId)}/nodes/${encodeURIComponent(nodeId)}/position`,
+        withJsonInit('PATCH', { x, y }),
+      );
+    },
+    undoGraph(graphId: string): Promise<GraphWithHistory> {
+      return requestJson(`/brainstorm/graphs/${encodeURIComponent(graphId)}/undo`, withJsonInit('POST', {}));
+    },
+    redoGraph(graphId: string): Promise<GraphWithHistory> {
+      return requestJson(`/brainstorm/graphs/${encodeURIComponent(graphId)}/redo`, withJsonInit('POST', {}));
+    },
+    exportGraph(graphId: string): Promise<{ graph: BrainstormGraph }> {
+      return requestJson(`/brainstorm/graphs/${encodeURIComponent(graphId)}/export`);
+    },
+    importGraph(graph: BrainstormGraph, graphId?: string): Promise<GraphWithHistory> {
+      return requestJson('/brainstorm/graphs/import', withJsonInit('POST', { graph, graphId }));
     },
     executeAction(payload: ActionExecutionRequest): Promise<ActionExecutionResponse> {
       return requestJson('/brainstorm/execute', withJsonInit('POST', payload));

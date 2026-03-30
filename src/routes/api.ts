@@ -12,7 +12,9 @@ import {
 import { executeBrainstormAction, ExecutionContextInput } from '../services/brainstorm-engine';
 import {
   appendBubblesToGraph,
+  createNodeInGraph,
   createGraph,
+  deleteNodeSubtree,
   exportGraph,
   getGraphHistoryStatus,
   getGraph,
@@ -315,6 +317,66 @@ router.patch('/brainstorm/graphs/:graphId/nodes/:nodeId/position', (req: Request
   }
 });
 
+router.post('/brainstorm/graphs/:graphId/nodes', (req: Request, res: Response) => {
+  const { type, content, actor, parentNodeId, position } = req.body as {
+    type?: string;
+    content?: string;
+    actor?: string;
+    parentNodeId?: string;
+    position?: { x?: number; y?: number };
+  };
+
+  if (!type || typeof type !== 'string') {
+    res.status(400).json({ error: 'type is required' });
+    return;
+  }
+
+  if (!content || typeof content !== 'string' || !content.trim()) {
+    res.status(400).json({ error: 'content is required' });
+    return;
+  }
+
+  if (
+    typeof position !== 'undefined' &&
+    (typeof position !== 'object' || typeof position.x !== 'number' || typeof position.y !== 'number')
+  ) {
+    res.status(400).json({ error: 'position must contain numeric x and y' });
+    return;
+  }
+
+  try {
+    const graph = createNodeInGraph({
+      graphId: req.params.graphId,
+      type: type.trim(),
+      content: content.trim(),
+      actor,
+      parentNodeId,
+      position: position ? { x: position.x as number, y: position.y as number } : undefined,
+    });
+
+    res.status(201).json({
+      ...graph,
+      history: getGraphHistoryStatus(graph.id),
+    });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Unknown error';
+    res.status(404).json({ error: message });
+  }
+});
+
+router.delete('/brainstorm/graphs/:graphId/nodes/:nodeId', (req: Request, res: Response) => {
+  try {
+    const graph = deleteNodeSubtree(req.params.graphId, req.params.nodeId);
+    res.json({
+      ...graph,
+      history: getGraphHistoryStatus(graph.id),
+    });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Unknown error';
+    res.status(404).json({ error: message });
+  }
+});
+
 router.post('/brainstorm/graphs/:graphId/undo', (req: Request, res: Response) => {
   try {
     const graph = undoGraph(req.params.graphId);
@@ -394,11 +456,14 @@ router.post('/brainstorm/execute', async (req: Request, res: Response) => {
 
     const targetGraphId = graphId && graphId.trim() ? graphId : 'default';
     const graph = getOrCreateGraph(targetGraphId);
+    const fallbackParentId = graph.selectedNodeId || graph.rootNodeId;
     const resolvedParentIds = Array.isArray(parentNodeIds) && parentNodeIds.length > 0
       ? parentNodeIds
       : parentNodeId
         ? [parentNodeId]
-        : [graph.selectedNodeId || graph.rootNodeId];
+        : fallbackParentId
+          ? [fallbackParentId]
+          : [];
 
     const graphResult = appendBubblesToGraph({
       graphId: targetGraphId,

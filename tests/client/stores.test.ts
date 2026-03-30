@@ -58,6 +58,14 @@ const apiClientMock = {
   loadGraphs: jest.fn(),
   createGraph: jest.fn(),
   loadGraph: jest.fn(),
+  createNode: jest.fn(),
+  selectNode: jest.fn(),
+  updateGraphMetadata: jest.fn(),
+  updateNodePosition: jest.fn(),
+  undoGraph: jest.fn(),
+  redoGraph: jest.fn(),
+  exportGraph: jest.fn(),
+  importGraph: jest.fn(),
   executeAction: jest.fn(),
 };
 
@@ -72,11 +80,18 @@ jest.mock('svelte/store', () => ({
 
 import type { ActionExecutionResponse, GraphWithHistory } from '../../src/client/lib/api';
 import {
+  availableActions,
   asyncState,
+  buildExecutionContext,
+  composerInput,
+  executeActionByName,
   executeActionAndRefresh,
   graphById,
   graphs,
+  mergeNodeIds,
+  selectedNodeId,
   selectedGraphId,
+  uiControls,
 } from '../../src/client/lib/stores';
 
 function makeGraph(graphId: string): GraphWithHistory {
@@ -100,6 +115,11 @@ describe('stores executeActionAndRefresh', () => {
     graphs.set([]);
     graphById.set({});
     selectedGraphId.set(null);
+    selectedNodeId.set(null);
+    availableActions.set([]);
+    mergeNodeIds.set([]);
+    composerInput.set('');
+    uiControls.set({ zoom: 1, search: '', drawerOpen: false, autoActionsEnabled: true });
     asyncState.set({ isLoading: false, error: '', toast: '' });
   });
 
@@ -173,5 +193,114 @@ describe('stores executeActionAndRefresh', () => {
       error: 'boom',
       toast: '',
     });
+  });
+
+  it('builds branch path and merge-selected context content', () => {
+    const graph: GraphWithHistory = {
+      id: 'g1',
+      name: 'Graph g1',
+      bookmarked: false,
+      createdAt: '',
+      updatedAt: '',
+      rootNodeId: 'root',
+      selectedNodeId: 'n2',
+      nodes: [
+        { id: 'root', type: 'root', content: 'Root', actor: 'system', createdAt: '' },
+        { id: 'n1', type: 'question', content: 'Question A', actor: 'user', createdAt: '' },
+        { id: 'n2', type: 'response', content: 'Response B', actor: 'facilitator', createdAt: '' },
+      ],
+      edges: [
+        { from: 'root', to: 'n1' },
+        { from: 'n1', to: 'n2' },
+      ],
+      history: { canUndo: false, canRedo: false, undoDepth: 0, redoDepth: 0 },
+    };
+
+    const context = buildExecutionContext(graph, 'n2', ['n1', 'n2']);
+    expect(context.parent.content).toBe('Response B');
+    expect(context.branch.path).toContain('root: Root');
+    expect(context.branch.path).toContain('question: Question A');
+    expect(context.selected.content).toEqual(['Question A', 'Response B']);
+  });
+
+  it('executes merge action with parentNodeIds and user input', async () => {
+    const graph: GraphWithHistory = {
+      id: 'g2',
+      name: 'Graph g2',
+      bookmarked: false,
+      createdAt: '',
+      updatedAt: '',
+      rootNodeId: 'root',
+      selectedNodeId: 'n3',
+      nodes: [
+        { id: 'root', type: 'root', content: 'Root', actor: 'system', createdAt: '' },
+        { id: 'n2', type: 'response', content: 'Option A', actor: 'facilitator', createdAt: '' },
+        { id: 'n3', type: 'response', content: 'Option B', actor: 'facilitator', createdAt: '' },
+      ],
+      edges: [
+        { from: 'root', to: 'n2' },
+        { from: 'root', to: 'n3' },
+      ],
+      history: { canUndo: false, canRedo: false, undoDepth: 0, redoDepth: 0 },
+    };
+
+    const response: ActionExecutionResponse = {
+      action: 'synthesize',
+      actor: 'synthesizer',
+      graphId: 'g2',
+      bubbles: [{ type: 'synthesis', content: 'Merged approach' }],
+      autoExecutions: [],
+      history: { canUndo: true, canRedo: false, undoDepth: 1, redoDepth: 0 },
+      graphStats: { nodeCount: 4, edgeCount: 3 },
+    };
+
+    graphById.set({ g2: graph });
+    selectedGraphId.set('g2');
+    selectedNodeId.set('n3');
+    mergeNodeIds.set(['n2', 'n3']);
+    availableActions.set([
+      {
+        name: 'synthesize',
+        description: 'merge selected branches',
+        trigger: ['response'],
+        actor: 'synthesizer',
+        output: 'synthesis',
+        branching: 'merge',
+      },
+    ]);
+    composerInput.set('Keep speed and quality');
+
+    apiClientMock.executeAction.mockResolvedValue(response);
+    apiClientMock.loadGraph.mockResolvedValue({
+      ...graph,
+      selectedNodeId: 'merged',
+      nodes: [...graph.nodes, { id: 'merged', type: 'synthesis', content: 'Merged approach', actor: 'synthesizer', createdAt: '' }],
+      edges: [...graph.edges, { from: 'n2', to: 'merged' }, { from: 'n3', to: 'merged' }],
+      history: response.history,
+    });
+    apiClientMock.loadGraphs.mockResolvedValue({
+      graphs: [
+        {
+          id: 'g2',
+          name: 'Graph g2',
+          bookmarked: false,
+          createdAt: '',
+          updatedAt: '',
+          nodeCount: 4,
+          edgeCount: 3,
+        },
+      ],
+    });
+
+    await executeActionByName('synthesize');
+
+    expect(apiClientMock.executeAction).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'synthesize',
+        graphId: 'g2',
+        parentNodeIds: ['n2', 'n3'],
+        userInput: 'Keep speed and quality',
+      }),
+    );
   });
 });
