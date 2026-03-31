@@ -59,6 +59,7 @@ export interface ActionExecutionResponse {
   action: string;
   actor: string;
   graphId: string;
+  createdNodeIds?: string[];
   bubbles: Array<{ type: string; content: string }>;
   autoExecutions: Array<{
     action: string;

@@ -29,6 +29,7 @@
     selectedNode,
     selectedProvider,
     selectedTrigger,
+    setNodePositionLocally,
     selectGraph,
     selectNodeInGraph,
     setAutoActionsEnabled,
@@ -64,7 +65,11 @@
 
   type PositionedNode = GraphNode & { x: number; y: number };
 
-  function buildLayout(graph: GraphWithHistory | null): PositionedNode[] {
+  interface RenderNode extends PositionedNode {
+    isPending?: boolean;
+  }
+
+  function buildLayout(graph: GraphWithHistory | null): RenderNode[] {
     if (!graph) {
       return [];
     }
@@ -105,7 +110,7 @@
       levels.set(level, list);
     }
 
-    const positioned: PositionedNode[] = [];
+    const positioned: RenderNode[] = [];
     const sortedLevels = Array.from(levels.entries()).sort((a, b) => a[0] - b[0]);
     for (const [level, nodes] of sortedLevels) {
       nodes.forEach((node, index) => {
@@ -438,7 +443,11 @@
           ...transientPositions,
           [nodeId]: { x: finalX, y: finalY },
         };
-        await persistNodePosition(nodeId, finalX, finalY);
+        if (baseNode.isPending) {
+          setNodePositionLocally(nodeId, finalX, finalY);
+        } else {
+          await persistNodePosition(nodeId, finalX, finalY);
+        }
       }
 
       transientPositions = Object.fromEntries(
@@ -453,6 +462,7 @@
   $: positionedNodes = buildLayout($selectedGraph);
   $: renderedNodes = positionedNodes.map((node) => ({
     ...node,
+    isPending: node.actor === 'pending',
     x: transientPositions[node.id]?.x ?? node.x,
     y: transientPositions[node.id]?.y ?? node.y,
   }));
@@ -695,13 +705,29 @@
                 class:active={$selectedNode?.id === node.id}
                 class:match={matchedNodeIds.has(node.id)}
                 class:merge={mergeSelection.has(node.id)}
+                class:pending={node.isPending}
                 style={`left: ${node.x}px; top: ${node.y}px;`}
                 on:pointerdown={(event) => beginNodeDrag(event, node.id)}
-                on:click={(event) => onNodeClick(event, node.id)}
-                on:contextmenu={(event) => onNodeContextMenu(event, node.id)}
+                on:click={(event) => {
+                  if (!node.isPending) {
+                    void onNodeClick(event, node.id);
+                  }
+                }}
+                on:contextmenu={(event) => {
+                  if (!node.isPending) {
+                    onNodeContextMenu(event, node.id);
+                  }
+                }}
               >
                 <strong>{node.type}</strong>
-                <span>{preview(node.content)}</span>
+                {#if node.isPending}
+                  <span class="node-loading">
+                    <span class="spinner" aria-hidden="true"></span>
+                    <em>Processing...</em>
+                  </span>
+                {:else}
+                  <span>{preview(node.content)}</span>
+                {/if}
               </button>
             {/each}
           </div>
@@ -1127,6 +1153,37 @@
 
   .node.merge {
     border-color: #22c55e;
+  }
+
+  .node.pending {
+    border-color: rgba(56, 189, 248, 0.75);
+    box-shadow: 0 0 0 1px rgba(56, 189, 248, 0.45);
+  }
+
+  .node-loading {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    color: #bae6fd;
+  }
+
+  .node-loading em {
+    font-style: normal;
+  }
+
+  .spinner {
+    width: 0.85rem;
+    height: 0.85rem;
+    border-radius: 999px;
+    border: 2px solid rgba(186, 230, 253, 0.35);
+    border-top-color: #38bdf8;
+    animation: spin 0.8s linear infinite;
+  }
+
+  @keyframes spin {
+    to {
+      transform: rotate(360deg);
+    }
   }
 
   .merge-banner {

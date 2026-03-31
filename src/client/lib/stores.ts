@@ -81,6 +81,171 @@ function setActionsForTrigger(trigger: string, actions: BrainstormAction[]): voi
   availableActions.set(actions);
 }
 
+function createPendingNodeId(): string {
+  return `pending-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function addPendingNodesToGraph(
+  graph: GraphWithHistory,
+  nodes: Array<{ type: string; parentNodeIds: string[] }>,
+): string[] {
+  if (nodes.length === 0 || !graph.id) {
+    return [];
+  }
+
+  const graphNodeById = new Map(graph.nodes.map((node) => [node.id, node]));
+  const laneByParent = new Map<string, number>();
+  const created = nodes.map((node) => {
+    const anchorParentId = node.parentNodeIds[0] || graph.selectedNodeId || graph.rootNodeId;
+    const anchor = anchorParentId ? graphNodeById.get(anchorParentId) : undefined;
+    const laneKey = anchorParentId || '__root__';
+    const lane = laneByParent.get(laneKey) ?? 0;
+    laneByParent.set(laneKey, lane + 1);
+
+    return {
+      id: createPendingNodeId(),
+      type: node.type,
+      content: '',
+      actor: 'pending',
+      createdAt: new Date().toISOString(),
+      position: {
+        x: anchor?.position?.x ?? 60,
+        y: (anchor?.position?.y ?? 40) + (lane + 1) * 132,
+      },
+      parentNodeIds: node.parentNodeIds,
+    };
+  });
+
+  const createdNodes = created.map(({ parentNodeIds: _parentNodeIds, ...rest }) => rest);
+  const createdEdges = created.flatMap((node) =>
+    node.parentNodeIds.map((parentNodeId) => ({ from: parentNodeId, to: node.id })),
+  );
+
+  graphById.update((existing) => {
+    const current = existing[graph.id];
+    if (!current) {
+      return existing;
+    }
+
+    return {
+      ...existing,
+      [graph.id]: {
+        ...current,
+        nodes: [...current.nodes, ...createdNodes],
+        edges: [...current.edges, ...createdEdges],
+      },
+    };
+  });
+
+  return created.map((node) => node.id);
+}
+
+function removePendingNodesFromGraph(graphId: string, nodeIds: string[]): void {
+  if (nodeIds.length === 0) {
+    return;
+  }
+
+  const ids = new Set(nodeIds);
+  graphById.update((existing) => {
+    const current = existing[graphId];
+    if (!current) {
+      return existing;
+    }
+
+    return {
+      ...existing,
+      [graphId]: {
+        ...current,
+        nodes: current.nodes.filter((node) => !ids.has(node.id)),
+        edges: current.edges.filter((edge) => !ids.has(edge.to) && !ids.has(edge.from)),
+      },
+    };
+  });
+}
+
+export function setNodePositionLocally(nodeId: string, x: number, y: number): void {
+  const graphId = readStore(selectedGraphId);
+  if (!graphId) {
+    return;
+  }
+
+  graphById.update((existing) => {
+    const current = existing[graphId];
+    if (!current) {
+      return existing;
+    }
+
+    return {
+      ...existing,
+      [graphId]: {
+        ...current,
+        nodes: current.nodes.map((node) =>
+          node.id === nodeId
+            ? {
+              ...node,
+              position: { x: Math.round(x), y: Math.round(y) },
+            }
+            : node,
+        ),
+      },
+    };
+  });
+}
+
+function hydratePendingNodesFromActionResponse(
+  graphId: string,
+  pendingNodeIds: string[],
+  response: ActionExecutionResponse,
+): void {
+  if (pendingNodeIds.length === 0) {
+    return;
+  }
+
+  const pendingIndexById = new Map(pendingNodeIds.map((id, index) => [id, index]));
+  const createdNodeIds = response.createdNodeIds ?? [];
+
+  graphById.update((existing) => {
+    const current = existing[graphId];
+    if (!current) {
+      return existing;
+    }
+
+    const remappedNodeIdByOldId = new Map<string, string>();
+    const nodes = current.nodes.map((node) => {
+      const pendingIndex = pendingIndexById.get(node.id);
+      if (typeof pendingIndex === 'undefined') {
+        return node;
+      }
+
+      const bubble = response.bubbles[pendingIndex];
+      const createdNodeId = createdNodeIds[pendingIndex] || node.id;
+      remappedNodeIdByOldId.set(node.id, createdNodeId);
+
+      return {
+        ...node,
+        id: createdNodeId,
+        type: bubble?.type ?? node.type,
+        content: bubble?.content ?? node.content,
+        actor: response.actor,
+      };
+    });
+
+    const edges = current.edges.map((edge) => ({
+      from: remappedNodeIdByOldId.get(edge.from) ?? edge.from,
+      to: remappedNodeIdByOldId.get(edge.to) ?? edge.to,
+    }));
+
+    return {
+      ...existing,
+      [graphId]: {
+        ...current,
+        nodes,
+        edges,
+      },
+    };
+  });
+}
+
 export async function refreshGraphSummaries(): Promise<void> {
   asyncState.update((s) => ({ ...s, isLoading: true, error: '' }));
   try {
@@ -401,10 +566,46 @@ export async function executeActionByName(actionName: string): Promise<ActionExe
     }
   }
 
-  const response = await executeActionAndRefresh(payload);
-  composerInput.set('');
-  mergeNodeIds.set([]);
-  return response;
+  const pendingParentNodeIds = shouldMerge
+    ? selectedMergeNodeIds
+    : payload.parentNodeId
+      ? [payload.parentNodeId]
+      : [];
+
+  const pendingNodeIds = addPendingNodesToGraph(graph, [
+    {
+      type: action?.output ?? 'idea',
+      parentNodeIds: pendingParentNodeIds,
+    },
+  ]);
+
+  asyncState.update((s) => ({ ...s, isLoading: true, error: '', toast: '' }));
+  try {
+    const response = await apiClient.executeAction(payload);
+    hydratePendingNodesFromActionResponse(graph.id, pendingNodeIds, response);
+    if (response.autoExecutions.length > 0) {
+      await refreshGraphAfterAction({
+        graphId: response.graphId,
+        autoExecutions: response.autoExecutions,
+      });
+    }
+    await refreshGraphSummaries();
+    asyncState.update((s) => ({
+      ...s,
+      isLoading: false,
+      toast: `Executed '${response.action}'`,
+    }));
+    composerInput.set('');
+    mergeNodeIds.set([]);
+    return response;
+  } catch (error) {
+    removePendingNodesFromGraph(graph.id, pendingNodeIds);
+    const message = error instanceof Error ? error.message : 'Failed to execute action';
+    asyncState.update((s) => ({ ...s, isLoading: false, error: message }));
+    throw error;
+  } finally {
+    asyncState.update((s) => ({ ...s, isLoading: false }));
+  }
 }
 
 export async function createRootNodeAtPosition(params: {

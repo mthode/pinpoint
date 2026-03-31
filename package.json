@@ -4,7 +4,7 @@
   "description": "AI-powered chat application with multiple provider support",
   "main": "dist/server.js",
   "scripts": {
-    "prestart": "npm run build:server",
+    "prestart": "npm run build",
     "build:server": "tsc",
     "build:client": "vite build --config vite.config.mts",
     "build": "npm run build:server && npm run build:client",

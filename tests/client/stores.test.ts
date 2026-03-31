@@ -303,4 +303,77 @@ describe('stores executeActionAndRefresh', () => {
       }),
     );
   });
+
+  it('shows and clears pending placeholder node while action is running', async () => {
+    const graph = makeGraph('g3');
+    graphById.set({ g3: graph });
+    selectedGraphId.set('g3');
+    selectedNodeId.set('n1');
+    availableActions.set([
+      {
+        name: 'clarify',
+        description: 'clarify parent content',
+        trigger: ['root'],
+        actor: 'facilitator',
+        output: 'idea',
+      },
+    ]);
+
+    let resolveExecute: ((value: ActionExecutionResponse) => void) | null = null;
+    apiClientMock.executeAction.mockImplementation(
+      () =>
+        new Promise<ActionExecutionResponse>((resolve) => {
+          resolveExecute = resolve;
+        }),
+    );
+    apiClientMock.loadGraph.mockResolvedValue(graph);
+    apiClientMock.loadGraphs.mockResolvedValue({
+      graphs: [
+        {
+          id: 'g3',
+          name: 'Graph g3',
+          bookmarked: false,
+          createdAt: '',
+          updatedAt: '',
+          nodeCount: 1,
+          edgeCount: 0,
+        },
+      ],
+    });
+
+    const actionPromise = executeActionByName('clarify');
+
+    const pendingDuringRun = get(graphById).g3.nodes.filter((node) => node.actor === 'pending');
+    expect(pendingDuringRun).toHaveLength(1);
+    expect(pendingDuringRun[0].type).toBe('idea');
+
+    const pendingEdgesDuringRun = get(graphById).g3.edges.filter((edge) => edge.to === pendingDuringRun[0].id);
+    expect(pendingEdgesDuringRun).toEqual([{ from: 'n1', to: pendingDuringRun[0].id }]);
+
+    if (!resolveExecute) {
+      throw new Error('Expected execute action resolver to be assigned');
+    }
+
+    const resolvePending = resolveExecute as (value: ActionExecutionResponse) => void;
+    resolvePending({
+      action: 'clarify',
+      actor: 'facilitator',
+      graphId: 'g3',
+      createdNodeIds: ['bubble-final-1'],
+      bubbles: [{ type: 'idea', content: 'Clarified' }],
+      autoExecutions: [],
+      history: { canUndo: false, canRedo: false, undoDepth: 0, redoDepth: 0 },
+      graphStats: { nodeCount: 2, edgeCount: 1 },
+    });
+
+    await actionPromise;
+    expect(get(graphById).g3.nodes.filter((node) => node.actor === 'pending')).toEqual([]);
+    expect(get(graphById).g3.nodes.find((node) => node.id === 'bubble-final-1')).toEqual(
+      expect.objectContaining({
+        type: 'idea',
+        content: 'Clarified',
+        actor: 'facilitator',
+      }),
+    );
+  });
 });
